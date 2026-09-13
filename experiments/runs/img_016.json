@@ -1,0 +1,415 @@
+{
+  "image_id": "img_016",
+  "variants": [
+    {
+      "image_id": "img_016",
+      "variant": "D1",
+      "label": "Regole",
+      "model": null,
+      "source": "heuristic",
+      "output_path": "dataset/processed/img_016_D1.jpg",
+      "params": {
+        "gamma": 1,
+        "clahe_clip": 0,
+        "white_balance": 0.37,
+        "denoise": 4,
+        "rotate_deg": 0,
+        "sharpen": 0.2,
+        "auto_straighten": false,
+        "recommendation": "apply"
+      },
+      "plan": {
+        "gamma": 1,
+        "clahe_clip": 0,
+        "white_balance": 0.37,
+        "denoise": 4,
+        "rotate_deg": 0,
+        "sharpen": 0.2,
+        "auto_straighten": false,
+        "recommendation": "apply"
+      },
+      "fidelity": {
+        "structure": 0.9957,
+        "structure_local_min": 0.9885,
+        "hue_corr": 0.9989,
+        "score": 0.9967,
+        "threshold": 0.9,
+        "local_floor": 0.65,
+        "passed": true
+      },
+      "steps": [
+        {
+          "module": "Risoluzione",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Colore",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9997,
+            "structure_local_min": 0.9993,
+            "hue_corr": 0.9987,
+            "score": 0.9994,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "white_balance": 0.37
+          }
+        },
+        {
+          "module": "Luce",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Pulizia",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9957,
+            "structure_local_min": 0.9882,
+            "hue_corr": 0.9989,
+            "score": 0.9967,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "denoise": 4
+          }
+        },
+        {
+          "module": "Raddrizza",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Nitidezza",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9957,
+            "structure_local_min": 0.9885,
+            "hue_corr": 0.9989,
+            "score": 0.9967,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "sharpen": 0.2
+          }
+        }
+      ],
+      "applied": [
+        "Colore",
+        "Pulizia",
+        "Nitidezza"
+      ],
+      "ai_reconstructed": false,
+      "crop_pct": 0,
+      "defects": [
+        "color_cast",
+        "compressed"
+      ],
+      "advice": [],
+      "reason": "",
+      "recommendation": "apply",
+      "plan_fixes": [],
+      "cost_usd": 0,
+      "latency_ms": 11757,
+      "iterations": 1,
+      "review_verdict": null,
+      "status": "accepted",
+      "error": null
+    },
+    {
+      "image_id": "img_016",
+      "variant": "D2",
+      "label": "Haiku + verifica",
+      "model": "claude-haiku-4-5",
+      "source": "model",
+      "output_path": "dataset/processed/img_016_D2.jpg",
+      "params": {
+        "gamma": 1,
+        "clahe_clip": 0,
+        "white_balance": 0.6,
+        "denoise": 4,
+        "rotate_deg": 0,
+        "sharpen": 0.2,
+        "auto_straighten": false,
+        "recommendation": "apply"
+      },
+      "plan": {
+        "gamma": 1,
+        "clahe_clip": 0,
+        "white_balance": 0.6,
+        "denoise": 4,
+        "rotate_deg": 0,
+        "sharpen": 0.2,
+        "recommendation": "apply"
+      },
+      "fidelity": {
+        "structure": 0.9958,
+        "structure_local_min": 0.9874,
+        "hue_corr": 0.9986,
+        "score": 0.9967,
+        "threshold": 0.9,
+        "local_floor": 0.65,
+        "passed": true
+      },
+      "steps": [
+        {
+          "module": "Risoluzione",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Colore",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9998,
+            "structure_local_min": 0.9994,
+            "hue_corr": 0.9987,
+            "score": 0.9995,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "white_balance": 0.6
+          }
+        },
+        {
+          "module": "Luce",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Pulizia",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9959,
+            "structure_local_min": 0.9874,
+            "hue_corr": 0.9986,
+            "score": 0.9967,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "denoise": 4
+          }
+        },
+        {
+          "module": "Raddrizza",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Nitidezza",
+          "needed": true,
+          "applied": true,
+          "passed": true,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9958,
+            "structure_local_min": 0.9874,
+            "hue_corr": 0.9986,
+            "score": 0.9967,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": true
+          },
+          "params": {
+            "sharpen": 0.2
+          }
+        }
+      ],
+      "applied": [
+        "Colore",
+        "Pulizia",
+        "Nitidezza"
+      ],
+      "ai_reconstructed": false,
+      "crop_pct": 0,
+      "defects": [
+        "color_cast",
+        "compressed"
+      ],
+      "advice": [],
+      "reason": "La foto ha una leggera dominante blu-verde dal bilanciamento del bianco e mostra i segni della compressione JPEG; correggo il colore e applico una leggera pulizia per attenuare gli artefatti senza degradare ulteriormente la texture.",
+      "recommendation": "apply",
+      "plan_fixes": [],
+      "cost_usd": 0.0035,
+      "latency_ms": 24926,
+      "iterations": 1,
+      "review_verdict": "ok",
+      "status": "accepted",
+      "error": null
+    },
+    {
+      "image_id": "img_016",
+      "variant": "D3",
+      "label": "Generativo",
+      "model": "sdxl-controlnet",
+      "source": "model",
+      "output_path": "dataset/processed/img_016_D3.jpg",
+      "params": {
+        "strength": 0.35
+      },
+      "plan": null,
+      "fidelity": {
+        "structure": 0.9441,
+        "structure_local_min": 0.3224,
+        "hue_corr": 0.9912,
+        "score": 0.9582,
+        "threshold": 0.9,
+        "local_floor": 0.65,
+        "passed": false
+      },
+      "steps": [
+        {
+          "module": "Risoluzione",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Colore",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Luce",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Pulizia",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Raddrizza",
+          "needed": false,
+          "applied": false,
+          "passed": null,
+          "retried": false,
+          "fidelity": null,
+          "params": null
+        },
+        {
+          "module": "Nitidezza",
+          "needed": true,
+          "applied": false,
+          "passed": false,
+          "retried": false,
+          "fidelity": {
+            "structure": 0.9441,
+            "structure_local_min": 0.3224,
+            "hue_corr": 0.9912,
+            "score": 0.9582,
+            "threshold": 0.9,
+            "local_floor": 0.65,
+            "passed": false
+          },
+          "params": {
+            "nitidezza": "x0.55"
+          }
+        }
+      ],
+      "measured_changes": {
+        "luminance_delta": 0.7,
+        "contrast_delta": -0.9,
+        "cast_before": 8.5,
+        "cast_after": 7.6,
+        "noise_before": 0.48,
+        "noise_after": 0.66,
+        "sharpness_ratio": 0.55,
+        "tilt_before": 0,
+        "tilt_after": 0,
+        "scale": 0.72
+      },
+      "applied": [],
+      "ai_reconstructed": true,
+      "crop_pct": 0,
+      "defects": [],
+      "advice": [],
+      "reason": "Ridisegno generativo: nessuna diagnosi, il modello decide da solo cosa cambiare.",
+      "recommendation": "apply",
+      "plan_fixes": [],
+      "cost_usd": 0.00208,
+      "latency_ms": 5584,
+      "iterations": 1,
+      "review_verdict": null,
+      "status": "rejected_fidelity",
+      "error": null
+    }
+  ],
+  "judge": [],
+  "source": "batch",
+  "order": [
+    "D1",
+    "D2",
+    "D3"
+  ],
+  "input_warnings": [],
+  "heuristic_defects": [],
+  "latency_ms": 0
+}

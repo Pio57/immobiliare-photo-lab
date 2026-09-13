@@ -1,0 +1,26 @@
+score  allowed   min 0.957 p10 0.978 med 0.987 p90 0.997 max 0.998
+       forbidden min 0.456 p10 0.673 med 0.958 p90 1.000 max 1.000
+         object_removed    min 0.906 p10 0.974 med 0.989 p90 0.996 max 0.999
+         window_replaced   min 0.521 p10 0.671 med 0.819 p90 0.949 max 0.982
+         crack_repaired    min 1.000 p10 1.000 med 1.000 p90 1.000 max 1.000
+         generative_smear  min 0.456 p10 0.599 med 0.775 p90 0.840 max 0.879
+structure allowed   min 0.964 p10 0.976 med 0.987 p90 0.996 max 0.998
+       forbidden min 0.223 p10 0.609 med 0.957 p90 1.000 max 1.000
+         object_removed    min 0.867 p10 0.964 med 0.986 p90 0.996 max 0.998
+         window_replaced   min 0.596 p10 0.685 med 0.831 p90 0.956 max 0.989
+         crack_repaired    min 1.000 p10 1.000 med 1.000 p90 1.000 max 1.000
+         generative_smear  min 0.223 p10 0.430 med 0.680 p90 0.772 max 0.828
+local_min allowed   min 0.820 p10 0.883 med 0.940 p90 0.982 max 0.986
+       forbidden min -0.618 p10 -0.446 med -0.072 p90 0.536 max 0.958
+         object_removed    min -0.522 p10 -0.363 med -0.226 p90 -0.008 max 0.436
+         window_replaced   min -0.478 p10 -0.180 med 0.114 p90 0.420 max 0.462
+         crack_repaired    min -0.316 p10 0.181 med 0.508 p90 0.740 max 0.958
+         generative_smear  min -0.618 p10 -0.551 med -0.410 p90 -0.204 max 0.047
+hue    allowed   min 0.907 p10 0.975 med 0.996 p90 1.000 max 1.000
+       forbidden min 0.113 p10 0.868 med 0.999 p90 1.000 max 1.000
+         object_removed    min 0.990 p10 0.994 med 1.000 p90 1.000 max 1.000
+         window_replaced   min 0.113 p10 0.541 med 0.888 p90 0.965 max 0.992
+         crack_repaired    min 1.000 p10 1.000 med 1.000 p90 1.000 max 1.000
+         generative_smear  min 0.868 p10 0.981 med 0.997 p90 1.000 max 1.000
+
+gate: allowed pass 50/50 | forbidden pass 7/100
