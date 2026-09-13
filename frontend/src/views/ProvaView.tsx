@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Dropzone } from '../components/Dropzone'
 import { Lightbox } from '../components/Lightbox'
 import { Button, Card, SectionTitle, secs } from '../components/ui'
-import { VersionGrid, label } from '../components/VersionCards'
+import { VersionGrid } from '../components/VersionCards'
 import { isLiveConfigured, pendingUpload, runProduct, waitForResult } from '../lib/api'
 import { VARIANT_LABEL, type ProductResponse, type VersionCard } from '../types'
 
@@ -108,18 +108,6 @@ export function ProvaView() {
           afterLabel={VARIANT_LABEL[zoom.variant].split(' · ')[1]}
           onClose={() => setZoom(null)}
         />
-      )}
-
-      {r.input_warnings.some((w) => !w.startsWith('letterbox')) && (
-        <Card className="border-amber-200 bg-amber-50 p-4 text-sm">
-          <b>Foto a bassa qualità in ingresso</b> (
-          {r.input_warnings
-            .filter((w) => !w.startsWith('letterbox'))
-            .map((w) => label(w.split(':')[0]))
-            .join(', ')}
-          ). Nessuna pipeline ricostruisce dettagli che non ci sono: se puoi, carica l&apos;originale dalla galleria.
-          {r.input_warnings.some((w) => w.startsWith('letterbox')) && ' Rimosse le bande nere ai bordi.'}
-        </Card>
       )}
 
       <section>
