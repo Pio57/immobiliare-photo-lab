@@ -14,15 +14,18 @@ import mimetypes
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import markdown
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-SRC = HERE / "nota.md"
-HTML = HERE / "nota.html"
-PDF = HERE / "immobiliare-photo-lab-nota.pdf"
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+WIDE = "--wide" in sys.argv
+SRC = Path(ARGS[0]).resolve() if ARGS else HERE / "nota.md"
+PDF = Path(ARGS[1]).resolve() if len(ARGS) > 1 else HERE / "immobiliare-photo-lab-nota.pdf"
+HTML = PDF.with_suffix(".html")
 
 CSS = """
 @page { size: A4; margin: 11mm 12mm 11mm 12mm; }
@@ -50,8 +53,23 @@ li { margin-bottom: 2pt; }
 """
 
 
+WIDE_CSS = """
+@page { size: A4; margin: 16mm 16mm; }
+html { font-size: 10pt; }
+h1 { font-size: 20pt; margin: 0 0 8pt; }
+h2 { font-size: 14pt; margin: 16pt 0 6pt; page-break-before: always; }
+h2:first-of-type { page-break-before: auto; }
+h3 { font-size: 11.5pt; margin: 12pt 0 4pt; }
+p { text-align: left; }
+table { font-size: 8.6pt; }
+th, td { padding: 3pt 5pt; }
+figure.wide img { max-height: 70mm; }
+figure img { max-height: 120mm; }
+"""
+
+
 def embed(src: str) -> str:
-    path = (HERE / src).resolve()
+    path = (SRC.parent / src).resolve()
     mime = mimetypes.guess_type(path.name)[0] or "image/png"
     return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
@@ -65,8 +83,9 @@ def main() -> None:
         return f'<figure{cls}><img src="{embed(src)}" alt=""><figcaption>{caption}</figcaption></figure>'
     text = re.sub(r"!\[(.*?)\]\((.*?)\)", fig, text)
     body = markdown.markdown(text, extensions=["tables", "fenced_code"])
-    HTML.write_text(f"<!doctype html><html lang='it'><head><meta charset='utf-8'><title>immobiliare-photo-lab — nota</title>"
-                    f"<style>{CSS}</style></head><body>{body}</body></html>", encoding="utf-8")
+    css = CSS + (WIDE_CSS if WIDE else "")
+    HTML.write_text(f"<!doctype html><html lang='it'><head><meta charset='utf-8'><title>{SRC.stem}</title>"
+                    f"<style>{css}</style></head><body>{body}</body></html>", encoding="utf-8")
     chrome = next((c for c in [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",

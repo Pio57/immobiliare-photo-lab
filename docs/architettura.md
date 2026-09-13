@@ -85,6 +85,8 @@ regole.
 
 ### 3.1 Correggi (`workflow-correct.json`, 50 nodi, sotto-workflow)
 
+![Il canvas di Correggi: sei corsie, ognuna con serve? → applica → gate → ok / bocciata → riprova?](../n8n/screenshots/correct.png)
+
 Riceve `{ input: { image_b64, image_id?, low_resolution }, plan, save_as }` e restituisce
 `{ output_b64, output_path, params, fidelity, crop_pct, steps, applied, changed, ai_reconstructed }`.
 
@@ -131,6 +133,8 @@ Una foto solo storta passa quindi da un solo nodo *applica* (Raddrizza) più il 
 senza difetti non chiama nulla e torna `changed: false`.
 
 ### 3.2 Prodotto (`workflow-product.json`, 39 nodi, webhook `photo-lab-product`)
+
+![Il canvas di Prodotto: ingresso, risposta immediata, tre corsie in parallelo, merge e record](../n8n/screenshots/product.png)
 
 | nodo | tipo | cosa fa |
 |---|---|---|
@@ -188,6 +192,8 @@ Chiusura:
 
 ### 3.3 Scelte (`workflow-choice.json`, 16 nodi, quattro webhook)
 
+![Il canvas di Scelte: quattro webhook, ciascuno inoltra a cv-service](../n8n/screenshots/choice.png)
+
 Quattro catene identiche di tre nodi (Webhook → HTTP verso cv-service → Respond to Webhook),
 con CORS aperto:
 
@@ -199,6 +205,8 @@ con CORS aperto:
 | `photo-lab-study` | GET | `GET /study` | gli id dello studio, quali sono pronti, i valutatori finora |
 
 ### 3.4 Batch (`workflow-batch.json`, 45 nodi, avvio manuale)
+
+![Il canvas di Batch: ciclo sulle foto, le stesse corsie in sequenza, giudice opzionale](../n8n/screenshots/batch.png)
 
 Le stesse corsie del Prodotto, in sequenza anziché in parallelo, dentro un ciclo sulle foto del
 dataset:
@@ -284,6 +292,12 @@ oltre il 10%; con almeno 30 giudizi «foto migliore» vince la quota più alta; 
 sovrappongono decide il costo per foto. La vista Esperimento mostra le quattro misure e la regola.
 
 ## 5. Il sito (`frontend/`)
+
+![La vista Prova: tre metodi affiancati con la scheda](report/figures/site-prova.png)
+
+![La vista Studio, domanda sul realismo](report/figures/site-studio.png)
+
+![La vista Esperimento](report/figures/site-esperimento.png)
 
 React 19, Vite, TypeScript, Tailwind 4; nessun router, tre viste in `src/views/`. `src/lib/api.ts`
 conosce un solo indirizzo (`VITE_N8N_WEBHOOK_URL`, il webhook del prodotto) e ricava gli altri tre
