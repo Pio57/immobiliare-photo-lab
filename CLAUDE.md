@@ -78,9 +78,14 @@ Re-import: aprire il workflow, Ctrl+A, Canc, Import from file, ricollegare le cr
 - Commit solo su richiesta esplicita dell'utente.
 
 ## Stato attuale (aggiornare ogni sera)
-- 2026-09-13: online su Vercel + VPS Hostinger (n8n self-hosted, cv-service Docker, repo in
-  /opt/photo-lab, `bash deploy/update.sh` per aggiornare; judgments.csv vive sul server, ignorato da git, si riporta con scp). Nota PDF (2 pagine) consegnabile.
-  Sera: UI rifatta con palette immobiliare.it; Studio riscritto sulle tre domande della fase 1;
-  tabellone con le quattro misure; giudizi vecchi a coppie archiviati in
-  si riparte da zero (giudizi vecchi a coppie cancellati). Da fare: aggiornare il server,
-  far fare lo Studio a 3-5 persone, rifare screenshot del sito, video demo, img_013 nel batch.
+- 2026-09-14: consegna pronta. Online su Vercel + VPS Hostinger (n8n self-hosted, cv-service Docker,
+  repo in /opt/photo-lab, `bash deploy/update.sh`; judgments.csv vive sul server, ignorato da git).
+  Nota PDF 2 pagine, docs/architettura.md + PDF 14 pagine, README con canvas e screenshot, video
+  demo (allegato all'email, non nel repo). Studio = fase 1 (realismo, qualità, foto migliore),
+  output efficace = tasso di pubblicabilità dal pool; sperimentazione non eseguita per scelta.
+  Ultime correzioni dal test sul campo: limite rotazione 15° (oltre 17° tilt + reshoot), seconda
+  opinione LSD sull'inclinazione, orientamento 90/180/270 via domanda a quattro vie (D2), retry
+  NSFW/429 su Replicate, giudice AI rimosso dal Batch, img_013 fuori dallo studio.
+  Regola: ogni modifica a build_workflows.py che tocca MODULES o Correggi richiede il re-import
+  di Correggi (stesso id) oltre a Prodotto e Batch; docs e PDF vanno rigenerati con
+  `build.py docs/architettura.md docs/immobiliare-photo-lab-architettura.pdf --wide`.
