@@ -32,7 +32,7 @@
       }
     },
     {
-      "name": "sticky GIUDICE - pairwise, cieco",
+      "name": "sticky Record",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -40,9 +40,9 @@
         1340
       ],
       "parameters": {
-        "content": "## GIUDICE - pairwise, cieco\nAl posto dell'agente: Sonnet confronta le tre coppie, 3 volte con lati casuali. Output identici = 'indistinguibile' senza chiamata. Voti non unanimi = 'indistinguibile'.",
-        "height": 360,
-        "width": 1900,
+        "content": "## Record\nLe tre versioni in ordine casuale (l'ordine cieco che lo Studio mostra) e il record salvato in experiments/runs, una foto alla volta. Nessun giudice automatico: i giudizi sono quelli delle persone, nello Studio.",
+        "height": 260,
+        "width": 900,
         "color": 7
       }
     },

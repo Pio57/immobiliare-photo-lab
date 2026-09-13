@@ -848,7 +848,7 @@ return { json: { ...rec, source: 'batch', order, judge: [] } };
     nodes = [
         sticky("Setup e ciclo", "Una foto etichettata per iterazione: ogni record e' salvato prima di passare alla successiva, cosi' un'interruzione non perde il lavoro fatto. Config: ids = lo studio (le foto scelte a mano). /prepare misura la foto una volta per tutte le famiglie.", -120, -160, 1900, 420, 4),
         sticky("Le stesse tre corsie del prodotto", "Stessa diagnosi, stesso Correggi, stesso generativo. Qui in sequenza (una foto alla volta) e con le etichette a mano: la diagnosi si misura anche con precision/recall per difetto.", 1800, -160, 3300, 160, 7),
-        sticky("GIUDICE - pairwise, cieco", "Al posto dell'agente: Sonnet confronta le tre coppie, 3 volte con lati casuali. Output identici = 'indistinguibile' senza chiamata. Voti non unanimi = 'indistinguibile'.", 1800, 1340, 1900, 360, 7),
+        sticky("Record", "Le tre versioni in ordine casuale (l'ordine cieco che lo Studio mostra) e il record salvato in experiments/runs, una foto alla volta. Nessun giudice automatico: i giudizi sono quelli delle persone, nello Studio.", 1800, 1340, 900, 260, 7),
         node("Manual Trigger", "n8n-nodes-base.manualTrigger", 1, {}, -40, 40),
         node("Config", "n8n-nodes-base.set", 3.4, {
             "assignments": {"assignments": [
