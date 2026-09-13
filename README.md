@@ -89,14 +89,14 @@ nodi, Publish). Su Vercel si imposta `VITE_N8N_WEBHOOK_URL` con l'URL del webhoo
    ```powershell
    cd cv-service
    py -3.12 -m venv .venv
-   .venv\Scriptsctivate
+   .venv\Scripts\activate
    pip install -r requirements.txt
    pytest
    uvicorn app.main:app --port 8000
    ```
 3. Esporlo con `ngrok http 8000` e copiare l'indirizzo pubblico in `.env` come
    `CV_SERVICE_PUBLIC_URL`.
-4. Generare i workflow con `cv-service\.venv\Scripts\python.exe n8nuild_workflows.py` e
+4. Generare i workflow con `cv-service\.venv\Scripts\python.exe n8n\build_workflows.py` e
    importarli in n8n come sopra.
 5. Copiare l'indirizzo del webhook del prodotto in `.env` come `VITE_N8N_WEBHOOK_URL`.
 6. Avviare il sito: `cd frontend`, `npm install`, `npm run dev`, e aprire `http://localhost:5173`.
