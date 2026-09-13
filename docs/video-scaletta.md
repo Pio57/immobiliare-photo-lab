@@ -1,71 +1,44 @@
-# Scaletta del video demo (2 min 30 s circa)
+# Scaletta del video demo (senza audio, 90 secondi circa)
 
-Registrazione dello schermo con voce, browser a tutto schermo su https://immobiliare-photo-lab.vercel.app, 1080p.
-Win+G (Xbox Game Bar) o OBS. Niente musica. Parlato in prima persona, tono da chi racconta una cosa fatta.
+Registrazione dello schermo, browser a tutto schermo su https://immobiliare-photo-lab.vercel.app,
+1080p, nessun audio. Solo le tre viste del sito: Prova, Studio, Esperimento. Senza voce contano i
+movimenti: lenti, uno alla volta, con una pausa di un paio di secondi su ogni cosa che si vuole far
+leggere.
 
 ## Prima di registrare
 
-1. Fai un giro completo di Prova con la foto che userai nel video: scalda il modello generativo su
-   Replicate, così durante la registrazione risponde in 30–40 secondi e non in due minuti.
-2. Tieni pronta una seconda scheda con `?result=<image_id>` di quella prova (l'id compare nella barra
-   dei tempi in fondo alla pagina, o in `experiments/runs/` sul server): se in registrazione l'attesa
-   è lunga, tagli e riprendi dalla scheda già pronta.
-3. Una scheda su n8n con il canvas di Prodotto aperto e uno zoom che mostri tutte e tre le corsie.
-4. Studio: apri `?view=studio`, inserisci iniziali nuove (es. `DEMO`), così parti dalla foto 1.
+1. Un giro completo di Prova con la foto che userai: scalda il modello generativo, così in
+   registrazione le tre versioni arrivano in 30–40 secondi.
+2. Una seconda scheda già aperta su `?result=<image_id>` di quella prova: se l'attesa è lunga, tagli
+   il video lì e riprendi da questa scheda.
+3. Studio con iniziali nuove (es. `DEMO`), per partire dalla foto 1.
 
 ## Sequenza
 
-**0:00 – 0:20 · Il problema** (schermata: home di Prova, ferma)
+**0:00 – 0:08 · Prova, pagina iniziale.** Fermo due secondi sul titolo e sul testo di presentazione,
+poi trascini la foto nella zona di caricamento.
 
-> Un agente immobiliare fotografa una casa col telefono, in fretta, con la luce che c'è, e quelle
-> foto vanno nell'annuncio così come sono. Ho costruito un prototipo che riconosce i difetti tipici
-> dello scatto veloce e corregge solo quelli, senza toccare la realtà dell'immobile. E, soprattutto,
-> un modo per confrontare tre metodi diversi e decidere quale usare.
+**0:08 – 0:35 · Attesa.** Lascia il messaggio "Tre correzioni in corso" con il contatore dei
+secondi per 5–8 secondi, poi taglia (in montaggio) fino all'arrivo delle tre versioni.
 
-**0:20 – 0:55 · Prova, il prodotto** (trascina la foto, attesa, poi le tre colonne)
+**0:35 – 1:00 · Le tre versioni.** Muovi lentamente la maniglia prima/dopo sulla prima colonna
+(Regole), poi sulla terza (Generativo). Scorri giù piano: fermati due secondi sulla scheda della
+seconda colonna (Modello con verifica), dove si leggono i difetti trovati, la spiegazione del
+modello e i moduli con i valori. Torna su, clic su "Ingrandisci il confronto" di una versione,
+maniglia avanti e indietro, chiudi.
 
-> Carico una foto. Tre flussi la correggono in parallelo: uno a regole, senza modelli; uno con un
-> modello di visione che diagnostica, corregge e poi verifica il risultato; uno generativo, che
-> ridisegna la stanza. Tutti passano dallo stesso controllo di fedeltà, che blocca ogni correzione
-> troppo diversa dall'originale.
+**1:00 – 1:25 · Studio.** Clic su "Studio". Fermo due secondi sull'introduzione, inserisci le
+iniziali, "Inizia". Rispondi a una foto intera, con calma: realismo (clic sul bottone, non tasto,
+così si vede), qualità (voto), realismo e qualità per le altre due versioni, poi "foto migliore"
+con l'originale sopra e le tre versioni sotto. La barra di avanzamento in alto si muove.
 
-(mentre arrivano le versioni, muovi la maniglia prima/dopo su una colonna, poi scendi sulla scheda)
-
-> Per ogni versione vedo cosa il metodo ha visto, quali moduli ha eseguito e con quali valori, e
-> il tempo. Il generativo non dichiara scelte: le sue differenze sono misurate dopo, sui pixel.
-
-**0:55 – 1:25 · Come è fatto** (scheda n8n, canvas di Prodotto; poi 5 secondi su Correggi)
-
-> Dietro c'è n8n: il webhook risponde subito con un identificativo, poi le tre corsie lavorano in
-> parallelo. Le prime due costruiscono un piano e lo passano a un sotto-workflow, Correggi, che
-> applica un modulo per difetto (colore, luce, pulizia, raddrizzamento, nitidezza) e dopo ciascuno
-> esegue il controllo di fedeltà. Se un modulo viene fermato, un tentativo più prudente, poi si
-> salta. Le correzioni e il controllo sono in un servizio Python con OpenCV; le chiamate ai modelli
-> partono da n8n, nessuna chiave nel browser.
-
-**1:25 – 2:00 · Studio, il test cieco** (rispondi a una foto intera: 7 domande, veloce)
-
-> Per decidere quale metodo è migliore non mi fido del mio occhio. Nello Studio un valutatore
-> risponde a tre domande per ogni foto, senza sapere quale metodo ha prodotto cosa: vedi elementi
-> finti o diversi dall'originale? Che voto dai a luce, nitidezza e colori? Quale useresti
-> nell'annuncio? Tastiera, dieci minuti per ventiquattro foto.
-
-**2:00 – 2:25 · Esperimento, la decisione** (tabellone)
-
-> Le risposte finiscono qui: tasso di alterazione, voto medio, quota di vittorie con intervallo di
-> confidenza, tasso di pubblicabilità. La regola è fissata prima di guardare i dati: fuori chi
-> altera l'immobile o supera il dieci per cento di correzioni fermate; tra gli ammessi vince la
-> foto migliore, con almeno trenta giudizi; a parità decide il costo. Il tabellone è vuoto perché
-> la sperimentazione con il panel è il passo successivo: il prototipo è pronto a raccoglierla.
-
-**2:25 – 2:35 · Chiusura** (README su GitHub)
-
-> Codice, workflow, nota e documento tecnico sono nel repository. Grazie.
+**1:25 – 1:40 · Esperimento.** Clic su "Esperimento". Fermo tre secondi sulla card in alto (giudizi
+raccolti, regola di decisione), scorri alla tabella delle quattro misure, fermo tre secondi. Fine.
 
 ## Note
 
-- Se il generativo tarda in registrazione, taglia: passa alla scheda con `?result=` e riprendi il
-  parlato da "Per ogni versione vedo…".
-- Nello Studio non commentare le foto: il punto è la meccanica delle tre domande, non il giudizio.
-- Nel tabellone non dire quale metodo vincerebbe.
-- Link al video nel README (`Prototipo online`, `Nota`, `Architettura`, `Video demo`).
+- Niente Studio oltre una foto: il punto è la meccanica delle tre domande.
+- Le risposte date durante la registrazione finiscono nel tabellone: dopo il video, sul server,
+  `rm /opt/photo-lab/experiments/judgments.csv` per ripartire da zero.
+- Formato: MP4, 1080p, 25–30 fps. Se supera i 100 MB, comprimi o carica su YouTube come "non in
+  elenco" e metti il link nel README.
