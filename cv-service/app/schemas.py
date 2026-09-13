@@ -104,6 +104,7 @@ class FidelityRequest(BaseModel):
 
 
 class PrepareResponse(BaseModel):
+    turns: list[str] = Field(default_factory=list, description="The photo at 0/90/180/270 deg clockwise, 512 px JPEG base64: the orientation question of D2.")
     """Entry point of every flow: one upload becomes a bounded JPEG plus its stats,
     plus the heuristic diagnosis (D1) — free, so it doubles as the fallback when a
     model diagnosis fails."""

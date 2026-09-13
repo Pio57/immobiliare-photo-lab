@@ -27,8 +27,8 @@ sono le stesse per tutti (i moduli del workflow Correggi); cambia la diagnosi.
 - **D1, regole.** Nessun modello: luminosità, dominante di colore, rumore e linee inclinate
   vengono misurati e regole scritte a mano scelgono i moduli e i valori.
 - **D2, modello con verifica.** Claude Haiku decide prima il verso della foto (la vede girata in
-  quattro modi e sceglie quella dritta), poi riceve la foto e le stesse misure, indica i difetti
-  e i valori; dopo la correzione riguarda il risultato accanto all'originale e, se non lo
+  quattro modi e sceglie quella dritta: a scelta non sbaglia, a gradi sì), poi riceve la foto e
+  le stesse misure, indica i difetti e i valori; dopo la correzione riguarda il risultato accanto all'originale e, se non lo
   convince, corregge il proprio piano. Alcune guardie deterministiche (inclinazione misurata,
   verso dell'esposizione, prudenza su foto compresse) possono modificare il piano del modello
   e vengono contate.

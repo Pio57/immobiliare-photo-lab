@@ -122,17 +122,12 @@ def prepare(req: ImageRequest) -> PrepareResponse:
         dest = Path(settings.repo_root) / "dataset" / "processed" / f"{req.save_as}.jpg"
         dest.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(dest), img, [cv2.IMWRITE_JPEG_QUALITY, settings.jpeg_quality])
+    # The photo turned four ways, as thumbnails: the vision model picks the upright one
+    # (a choice it gets right every time; an angle it gets wrong half the time).
+    small = resize_max(img, 512)
+    turns = [encode_b64(pipeline.turn(small, deg), quality=80) for deg in (0, 90, 180, 270)]
     return PrepareResponse(image_id=image_id, image_b64=encode_b64(img), stats=stats,
-                           heuristic_params=params, heuristic_defects=pipeline.heuristic_defects(stats, params))
-
-
-@router.post("/turns")
-def turns(req: ImageRequest) -> dict:
-    """The photo turned four ways (0, 90, 180, 270 clockwise), as small thumbnails, for
-    the orientation question of flow D2: a model that cannot say by how much a photo is
-    rotated picks the upright one out of four without fail."""
-    img = _load_request(ImageRequest(image_b64=req.image_b64, image_id=req.image_id, max_side=req.max_side or 512))
-    return {"turns": [{"deg": deg, "image_b64": encode_b64(pipeline.turn(img, deg))} for deg in (0, 90, 180, 270)]}
+                           heuristic_params=params, heuristic_defects=pipeline.heuristic_defects(stats, params), turns=turns)
 
 
 @router.post("/enhance", response_model=EnhanceResponse)

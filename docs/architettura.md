@@ -135,7 +135,7 @@ della curva tonale, pulizia dopo, rotazione, nitidezza per ultima). Chiusura:
 Una foto solo storta passa quindi da un solo nodo *applica* (Raddrizza) più il finale; una foto
 senza difetti non chiama nulla e torna `changed: false`.
 
-### 3.2 Prodotto (`workflow-product.json`, 45 nodi, webhook `photo-lab-product`)
+### 3.2 Prodotto (`workflow-product.json`, 43 nodi, webhook `photo-lab-product`)
 
 ![Il canvas di Prodotto: ingresso, risposta immediata, tre corsie in parallelo, merge e record](../n8n/screenshots/product.png)
 
@@ -152,18 +152,16 @@ Da qui tre corsie in parallelo.
 Prepara) → `D1: Correggi` (Execute Workflow, attende il sotto-workflow) → `Record D1` (Code,
 costruisce il `VariantResult`).
 
-**Corsia D2** (16 nodi):
+**Corsia D2** (14 nodi):
 
 | nodo | tipo | cosa fa |
 |---|---|---|
-| D2: quattro versi | HTTP | `POST cv-service/turns`: la foto girata di 0, 90, 180, 270 gradi, in miniatura |
-| D2: verso richiesta | Code | la domanda al modello: quattro immagini, "qual è quella dritta?", una lettera di risposta |
-| D2: verso modello | HTTP | chiamata ad Anthropic (circa 1.100 token, 1,5 s) |
-| D2: verso lettura | Code | lettera → quarto di giro (`orientation`); posta come scelta il modello non sbaglia (16/16 sul banco), come angolo sbaglia direzione una volta su due |
-| D2: richiesta | Code | corpo per Anthropic: system e user da `prompts/diagnosis.md`, foto in base64, misure di Prepara in JSON, `max_tokens 600`, thinking disabilitato |
+| D2: verso richiesta | Code | la domanda di orientamento: le quattro miniature di `/prepare` (0, 90, 180, 270 gradi), "qual è quella dritta?", una lettera di risposta |
+| D2: verso modello | HTTP | chiamata ad Anthropic (circa 1.100 token, 1,5 s). Posta come scelta a parte il modello non sbaglia (22/22 sul banco); dentro il prompt di diagnosi sbaglia una foto molto storta su tre; come angolo sbaglia direzione una volta su due |
+| D2: richiesta | Code | legge la lettera (→ `orientation`, quarto di giro senza perdita) e costruisce il corpo per Anthropic: system e user da `prompts/diagnosis.md`, foto in base64, misure di Prepara in JSON, `max_tokens 600`, thinking disabilitato |
 | D2: modello | HTTP | `POST api.anthropic.com/v1/messages`, credenziale `anthropicApi` di n8n |
 | D2: lettura | Code | `parse_js`: estrae il JSON dalla risposta, calcola il costo dai token a prezzo di listino, converte `exposure` in gamma; risposta illeggibile → `error` e piano nullo |
-| D2: piano | Code | `plan_js`: piano del modello se c'è, altrimenti riserva sulle regole; applica le guardie; l'orientamento viene dalla domanda a quattro vie, non dalla diagnosi |
+| D2: piano | Code | `plan_js`: piano del modello se c'è, altrimenti riserva sulle regole; applica le guardie; un `keep_original` non annulla mai il quarto di giro |
 | D2: Correggi | Execute Workflow | prima correzione |
 | D2: verifica richiesta | Code | corpo della verifica: ORIGINAL e CORRECTED come immagini, il piano e le righe dei moduli eseguiti, prompt Review |
 | D2: verifica modello | HTTP | seconda chiamata ad Anthropic |
@@ -212,7 +210,7 @@ con CORS aperto:
 | `photo-lab-result` | GET | `GET /runs/{image_id}/cards` | le tre versioni di un'esecuzione, per la Prova (polling) e per lo Studio |
 | `photo-lab-study` | GET | `GET /study` | gli id dello studio, quali sono pronti, i valutatori finora |
 
-### 3.4 Batch (`workflow-batch.json`, 47 nodi, avvio manuale)
+### 3.4 Batch (`workflow-batch.json`, 45 nodi, avvio manuale)
 
 ![Il canvas di Batch: ciclo sulle foto, le stesse corsie in sequenza](../n8n/screenshots/batch.png)
 
@@ -245,7 +243,7 @@ FastAPI, Python 3.12, OpenCV. Trentacinque test (`pytest`). Configurazione in `a
 | endpoint | usato da | cosa fa |
 |---|---|---|
 | `GET /health` | deploy | stato |
-| `POST /prepare` | Prodotto, Batch, D3 shrink | ridimensiona, taglia le bande, misura (`ImageStats`), calcola `heuristic_params` e `heuristic_defects`, opzionalmente salva |
+| `POST /prepare` | Prodotto, Batch, D3 shrink | ridimensiona, taglia le bande, misura (`ImageStats`), calcola `heuristic_params` e `heuristic_defects`, restituisce le quattro miniature girate (`turns`), opzionalmente salva |
 | `POST /apply` | Correggi | applica `EnhanceParams` all'immagine, esegue il controllo di fedeltà contro l'originale allineato, restituisce immagine (se richiesta), parametri effettivi, `fidelity`, `crop_pct` e, se bocciata, `suggested_conservative_params` |
 | `POST /gate_remote` | D3, Risoluzione | scarica un'immagine da URL, la confronta con l'originale, la salva, restituisce `fidelity` e `measured_changes` |
 | `POST /runs/{id}` | Prodotto, Batch | salva il record; i pixel eventualmente inline vengono scritti in `dataset/processed/` e tolti dal JSON |

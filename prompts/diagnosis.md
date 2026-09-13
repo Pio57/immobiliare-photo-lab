@@ -40,18 +40,14 @@ Modules and their parameters (values outside the range are clamped):
 - Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set
   `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a
   crisp photo. It amplifies edges that exist, it cannot add detail.
-- Turn — `orientation`: the clockwise quarter turn that puts the photo upright (floor at
-  the bottom, ceiling at the top). Read it from where the FLOOR is now: floor at the
-  TOP → 180; floor on the LEFT side → 90; floor on the RIGHT side → 270; floor at the
-  bottom → 0. Costs nothing (no crop): set it whenever the photo is `rotated`, whatever
-  else you decide, and judge the lean (`tilt`) on the photo as it will be after the turn.
+- Turn — a photo on its side or upside down (`rotated`) gets a lossless quarter turn
+  decided by a separate question (the photo turned four ways, "which one is upright?"),
+  not by you: just name the defect. Judge the lean (`tilt`) on the upright version.
 - Straighten — `rotate_deg` -15–15, positive = counter-clockwise. 0 = off.
   The measured `tilt_deg` is what the pipeline found from straight lines; when it is
   not 0 it is applied as measured and your value is ignored. When it is 0 the
   detector found no usable lines, which does NOT mean the photo is straight: **check
-  the geometry yourself, always**, before anything else. First the orientation: is the
-  floor at the bottom and the ceiling at the top? If not, the photo is `rotated`: set
-  `orientation`. Then the lean. Compare the walls, door
+  the geometry yourself, always**, before anything else. Compare the walls, door
   frames, wall corners, headboards, shelves and the ceiling line with the edges of
   the picture: in a straight photo they are parallel to the edges. If they all lean
   the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line
@@ -101,7 +97,7 @@ geometry from the picture).
 
 Return only a JSON object with exactly these keys:
 `defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,
-`denoise`, `sharpen`, `rotate_deg`, `orientation`, `recommendation`, `advice` (list from the fixed vocabulary),
+`denoise`, `sharpen`, `rotate_deg`, `recommendation`, `advice` (list from the fixed vocabulary),
 `reason` (one sentence in Italian, written for the estate agent, not for an engineer:
 what you found and what you decided).
 
