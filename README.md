@@ -4,6 +4,7 @@ Prototipo per il case study *Product Builder, Agentic AI Products* di Immobiliar
 
 - Prototipo online: https://immobiliare-photo-lab.vercel.app
 - Nota di accompagnamento (2 pagine): `docs/report/immobiliare-photo-lab-nota.pdf`
+- Architettura tecnica, workflow nodo per nodo: [`docs/architettura.md`](docs/architettura.md)
 
 Questo README spiega come è costruito il prototipo: i tre flussi messi a confronto, i quattro
 workflow n8n che li fanno girare, le tre viste del sito, come si misura e come si avvia. Il

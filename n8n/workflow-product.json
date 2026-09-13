@@ -32,7 +32,7 @@
       }
     },
     {
-      "name": "sticky Tre versioni, alla cieca",
+      "name": "sticky Tre versioni, con scheda",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -40,7 +40,7 @@
         180
       ],
       "parameters": {
-        "content": "## Tre versioni, alla cieca\nIl record fissa un ordine casuale (V1..V3) e va in experiments/runs. Il sito, che ha gia' ricevuto l'image_id, chiede il risultato al workflow Scelte finche' non e' pronto. L'agente sceglie (o tiene l'originale); il nome del workflow si scopre dopo. Una versione bocciata dal gate si vede ma non si puo' scegliere.",
+        "content": "## Tre versioni, con scheda\nIl record fissa un ordine casuale (V1..V3, usato dallo Studio) e va in experiments/runs. Il sito, che ha gia' ricevuto l'image_id, chiede il risultato al workflow Scelte finche' non e' pronto e mostra le tre versioni affiancate con la scheda di ogni metodo. La preferenza si misura nello Studio, non qui.",
         "height": 300,
         "width": 900,
         "color": 2

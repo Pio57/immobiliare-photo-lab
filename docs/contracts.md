@@ -69,10 +69,10 @@ delle schede; `judge` è vuoto nel prodotto (lo riempie solo il batch con giudic
   `experiments/judgments.csv`, una riga per risposta. `task` = `realism` (variant = la versione
   mostrata accanto all'originale, answer `yes` = alterata | `no`), `quality` (answer `1`..`5`),
   `best` (variant = la scelta, `""` = tiene l'originale; shown = le versioni sullo schermo).
-  La vista Prova registra `best` con tester vuoto.
+  La vista Prova non registra giudizi.
 - `GET /summary` → per famiglia le quattro misure della fase 1: `alteration_rate` (+ IC di Wilson),
-  `mos` (media dei voti 1-5), `choice_share` (+ IC), `effective_rate` (difetti etichettati trattati
-  dal modulo competente, niente fermato dal gate); poi `cost_mean_usd`, `latency_p50/p95_ms`, `error_rate`, `fixes_rate`, `gate_rejected_rate`,
+  `mos` (media dei voti 1-5), `choice_share` (+ IC), `effective_rate` (tasso di pubblicabilità: voto ≥ 4
+  e nessuna alterazione dallo stesso valutatore sulla stessa versione); poi `cost_mean_usd`, `latency_p50/p95_ms`, `error_rate`, `fixes_rate`, `gate_rejected_rate`,
   `unchanged_rate`, `fidelity_min`, `diagnosis {precision, recall, f1}` sulle foto etichettate;
   più `verdict` con la regola di decisione applicata.
 - `GET /runs/{id}/cards` → le schede cieche di un'esecuzione (immagini incluse).
