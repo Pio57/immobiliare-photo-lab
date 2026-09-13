@@ -304,14 +304,14 @@
       "main": [
         [
           {
-            "node": "Registra scelta",
+            "node": "Registra giudizio",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Registra scelta": {
+    "Registra giudizio": {
       "main": [
         [
           {

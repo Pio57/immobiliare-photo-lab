@@ -759,7 +759,7 @@ def build_choice() -> dict:
         node("Rispondi studio", "n8n-nodes-base.respondToWebhook", 1.1, {"respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": cors}, 1560, 220),
     ]
     connections: dict = {}
-    chain(connections, ["Webhook scelta", "Registra scelta", "Rispondi scelta"])
+    chain(connections, ["Webhook scelta", "Registra giudizio", "Rispondi scelta"])
     chain(connections, ["Webhook tabellone", "Riepilogo", "Rispondi tabellone"])
     chain(connections, ["Webhook risultato", "Schede", "Rispondi risultato"])
     chain(connections, ["Webhook studio", "Lista studio", "Rispondi studio"])
