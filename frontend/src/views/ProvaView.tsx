@@ -78,8 +78,8 @@ export function ProvaView() {
           </div>
           <h2 className="font-display text-5xl leading-[1.05] font-medium">La copertina giusta, con un click.</h2>
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-neutral-600">
-            Carica la foto scattata col telefono. Tre versioni corrette da tre metodi diversi — regole, modello con
-            verifica, generativo — tutte passate dallo stesso controllo di fedeltà. Scegli la migliore: la tua scelta è
+            Carica la foto scattata col telefono. Tre versioni corrette da tre metodi diversi (regole, modello con
+            verifica, generativo), tutte passate dallo stesso controllo di fedeltà. Scegli la migliore: la tua scelta è
             la misura.
           </p>
         </div>
