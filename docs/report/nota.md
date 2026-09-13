@@ -1,7 +1,5 @@
 # immobiliare-photo-lab: nota di accompagnamento
 
-*Case study "Product Builder, Agentic AI Products", Pio Santosuosso, settembre 2026 · prototipo: https://immobiliare-photo-lab.vercel.app · codice: https://github.com/Pio57/immobiliare-photo-lab*
-
 ## 1. Il problema che affronto
 
 Il caso d'uso è l'agente immobiliare che, in giornate piene di visite, fotografa in fretta un nuovo immobile con il cellulare, con la luce che c'è. Quelle foto finiscono direttamente nell'annuncio: quasi mai un fotografo passerà a rifarle.
