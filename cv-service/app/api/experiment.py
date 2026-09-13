@@ -75,10 +75,16 @@ def cards(image_id: str) -> dict:
         raise HTTPException(404, "not ready")
     rec = json.loads(path.read_text(encoding="utf-8"))
     processed = _root() / "dataset" / "processed"
+    # generated images are not versioned; the site snapshot (which is) doubles as the
+    # fallback, so a fresh clone on a server can serve the study without a batch run
+    fallbacks = [_root() / "snapshot" / "img", _root() / "frontend" / "public" / "snapshot" / "img"]
 
     def data_url(name: str) -> str | None:
-        f = processed / f"{name}.jpg"
-        return "data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode("ascii") if f.exists() else None
+        for folder in [processed, *fallbacks]:
+            f = folder / f"{name}.jpg"
+            if f.exists():
+                return "data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode("ascii")
+        return None
 
     by_id = {v["variant"]: v for v in rec.get("variants", [])}
     order = [v for v in rec.get("order") or list(by_id) if v in by_id]

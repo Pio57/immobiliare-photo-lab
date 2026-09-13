@@ -18,6 +18,7 @@ services:
     volumes:
       - ../dataset:/data/dataset
       - ../experiments:/data/experiments
+      - ../frontend/public/snapshot:/data/snapshot:ro
     expose: ["8000"]
     networks: [n8n]
 networks:
