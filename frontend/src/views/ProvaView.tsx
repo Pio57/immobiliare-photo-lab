@@ -20,8 +20,10 @@ export function ProvaView() {
   const [zoom, setZoom] = useState<VersionCard | null>(null)
 
   // After a reload, pick up the upload that was in flight instead of asking for the photo again.
+  // ?result=<image_id> opens a saved result directly (demo and screenshots).
   useEffect(() => {
-    const pending = pendingUpload()
+    const demo = new URLSearchParams(window.location.search).get('result')
+    const pending = demo ? { image_id: demo, t0: Date.now() } : pendingUpload()
     if (!pending || state.kind !== 'idle') return
     setState({ kind: 'running', preview: '', elapsedMs: Date.now() - pending.t0 })
     waitForResult(pending.image_id, (elapsedMs) => setState((s) => (s.kind === 'running' ? { ...s, elapsedMs } : s)))
