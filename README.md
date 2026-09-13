@@ -1,72 +1,174 @@
 # immobiliare-photo-lab
 
-Prototipo per il case study *Product Builder, Agentic AI Products* di Immobiliare.it. Il
-progetto serve a testare e confrontare diversi workflow di miglioramento automatico delle foto
-degli annunci immobiliari, misurando per ciascuno la qualità percepita, il costo, il tempo,
-l'affidabilità e il rischio di alterare l'immobile.
+Prototipo per il case study *Product Builder, Agentic AI Products* di Immobiliare.it.
 
-Il caso d'uso è la foto di copertina caricata dal telefono da un agente immobiliare. Il
-prodotto diagnostica i difetti della foto (buia, controluce, colori falsati, rumore,
-inclinazione, compressione, bassa risoluzione), corregge solo quelli con moduli separati e
-sottopone ogni correzione a un controllo di fedeltà che impedisce di alterare la realtà
-dell'immobile. Tre workflow diversi decidono cosa correggere: uno a regole, uno basato su un
-modello vision con verifica del risultato, uno generativo. Il sito permette di provarli su una
-foto, di confrontarli in un test cieco e di leggere il tabellone dei risultati.
+- Prototipo online: https://immobiliare-photo-lab.vercel.app
+- Nota di accompagnamento (2 pagine): `docs/report/immobiliare-photo-lab-nota.pdf`
 
-La nota di accompagnamento completa, con la definizione del problema, i workflow nel dettaglio,
-i parametri di confronto e il metodo di misura, è nel PDF allegato alla consegna (sorgente in
-`docs/report/`).
+Questo README spiega come è costruito il prototipo: i tre flussi messi a confronto, i quattro
+workflow n8n che li fanno girare, le tre viste del sito, come si misura e come si avvia. Il
+perché delle scelte, i parametri di valutazione e il metodo di misura sono nella nota.
 
-## Struttura del progetto
+## Il problema in breve
+
+Il caso d'uso è l'agente immobiliare che fotografa in fretta un immobile con il cellulare e
+pubblica quelle foto così come sono. Il prodotto riceve le foto, riconosce i difetti tipici
+dello scatto veloce (buia, controluce, colori falsati, rumore, inclinazione, compressione,
+bassa risoluzione) e corregge soltanto quelli, un intervento per difetto. Non aggiunge, non
+toglie e non ridisegna nulla: ogni correzione viene confrontata con l'originale da un controllo
+di fedeltà deterministico e scartata se se ne allontana troppo.
+
+## I tre flussi a confronto
+
+Quello che si confronta non è come si corregge, ma chi decide cosa correggere. Le correzioni
+sono le stesse per tutti (i moduli del workflow Correggi); cambia la diagnosi.
+
+- **D1, regole.** Nessun modello: luminosità, dominante di colore, rumore e linee inclinate
+  vengono misurati e regole scritte a mano scelgono i moduli e i valori.
+- **D2, modello con verifica.** Claude Haiku riceve la foto e le stesse misure, indica i difetti
+  e i valori; dopo la correzione riguarda il risultato accanto all'originale e, se non lo
+  convince, corregge il proprio piano. Alcune guardie deterministiche (inclinazione misurata,
+  verso dell'esposizione, prudenza su foto compresse) possono modificare il piano del modello
+  e vengono contate.
+- **D3, generativo.** SDXL con ControlNet riceve la foto e un prompt da fotografo e restituisce
+  una nuova immagine della stessa stanza; passa dallo stesso controllo di fedeltà.
+
+## I quattro workflow n8n
+
+I workflow sono generati da `n8n/build_workflows.py` (i prompt vengono da `prompts/`, gli
+indirizzi da `.env`): i JSON in `n8n/` non si modificano a mano. Le chiamate ai modelli
+partono tutte da n8n, così nessuna chiave arriva mai al browser.
+
+### Correggi, il motore delle correzioni
+
+![Correggi](n8n/screenshots/correct.png)
+
+È un sotto-workflow: riceve una foto e un piano (quali moduli, con quali valori) e applica un
+intervento alla volta in sei corsie: Risoluzione (Real-ESRGAN, solo sotto i 1000 px ed
+etichettata), Colore, Luce, Pulizia, Raddrizza, Nitidezza. Ogni corsia gira solo se il piano
+la chiede, applica il proprio parametro sopra quelli già accettati ripartendo dall'originale e
+passa dal controllo di fedeltà: se il risultato è troppo diverso dall'originale, un tentativo
+più prudente, poi la corsia viene saltata. Alla fine i parametri accettati vengono applicati
+insieme. Prodotto e Batch usano lo stesso Correggi: è il modo per confrontare solo la diagnosi.
+
+### Prodotto, chiamato dal sito
+
+![Prodotto](n8n/screenshots/product.png)
+
+Il webhook riceve la foto dalla vista Prova, la misura (`/prepare` di cv-service) e risponde
+subito con un `image_id`, perché il generativo a freddo può impiegare due minuti e un webhook
+non resta aperto tanto. Poi manda la foto in parallelo alle tre corsie: D1 e D2 costruiscono il
+piano e chiamano Correggi; D3 chiama il modello generativo su Replicate, aspetta con un ciclo
+di polling e applica lo stesso controllo di fedeltà. Il record con le tre versioni, i difetti
+trovati, i moduli eseguiti, la fedeltà, il costo e il tempo viene salvato in
+`experiments/runs/`; il sito lo recupera interrogando `photo-lab-result`.
+
+### Scelte, i webhook di servizio
+
+![Scelte](n8n/screenshots/choice.png)
+
+Quattro webhook piccoli: registra una risposta dello Studio (`photo-lab-choice`), serve il
+tabellone (`photo-lab-summary`), serve il risultato di un'esecuzione (`photo-lab-result`) e la
+lista delle foto dello studio (`photo-lab-study`). Ognuno passa la mano a cv-service.
+
+### Batch, l'esperimento sul dataset
+
+![Batch](n8n/screenshots/batch.png)
+
+Ripete il lavoro di Prodotto su un intero insieme di foto (le 24 del dataset, o gli id indicati
+in `Config`), una alla volta, con le stesse corsie e lo stesso Correggi. È il modo in cui sono
+state preparate le tre versioni di ogni foto dello Studio. Un giudice automatico (Claude
+Sonnet) è previsto come opzione ma spento: i giudizi che contano sono quelli delle persone.
+
+## Il sito
+
+Tre viste, un solo backend (i webhook n8n). Se il backend non risponde, Studio ed Esperimento
+leggono una copia statica in `frontend/public/snapshot/`.
+
+### Prova, il prodotto
+
+![Prova](docs/report/figures/site-prova.png)
+
+Si carica una foto scattata col telefono; dopo circa un minuto arrivano le tre versioni
+affiancate. Su ogni immagine una maniglia prima/dopo; sotto, la scheda del metodo: come decide,
+cosa ha visto (i difetti trovati e la spiegazione del modello), cosa ha fatto (i moduli
+eseguiti con i valori; per il generativo, le differenze misurate dopo sui pixel) e il tempo di
+elaborazione. Qui non si sceglie: la preferenza si misura nello Studio.
+
+### Studio, il test cieco
+
+![Studio, realismo](docs/report/figures/site-studio.png)
+
+Per ogni foto del dataset il valutatore risponde a tre domande, senza sapere quale flusso ha
+prodotto cosa. Realismo: originale accanto a una versione, "vedi elementi finti, generati o
+strutturalmente diversi?" (sì/no). Qualità: la sola versione, voto da 1 a 5 su luce, nitidezza
+e colori. Foto migliore: originale in alto e le tre versioni affiancate, "se fossi l'agente,
+quale useresti?". Sette risposte per foto, tastiera o mouse; si può interrompere e riprendere
+dallo stesso punto con le proprie iniziali. Ogni risposta finisce in `experiments/judgments.csv`.
+
+![Studio, qualità](docs/report/figures/site-studio-qualita.png)
+
+![Studio, foto migliore](docs/report/figures/site-studio-migliore.png)
+
+### Esperimento, il tabellone
+
+![Esperimento](docs/report/figures/site-esperimento.png)
+
+Ricalcolato a ogni apertura dai record e dalle risposte raccolte. Le quattro misure del test
+cieco per ogni flusso: tasso di alterazione (realismo), voto medio (qualità), quota di vittorie
+con intervallo di confidenza al 95% (foto migliore) e tasso di pubblicabilità (output efficace:
+voto almeno 4 e nessuna alterazione, dallo stesso valutatore). La regola di decisione è fissata
+prima di guardare i dati: fuori chi supera il 10% di correzioni fermate dal controllo di
+fedeltà, di errori o di alterazioni segnalate; tra gli ammessi vince la foto migliore con almeno
+trenta giudizi; a parità statistica decide il costo per foto.
+
+## Cosa è reale e cosa è simulato
+
+Nel prototipo non c'è nulla di simulato: le chiamate ai modelli, i tempi, i costi tracciati, il
+controllo di fedeltà e le 24 foto (immobili veri, da annunci pubblici) sono reali. La
+sperimentazione con il panel di valutatori non è stata eseguita: il prototipo la rende
+possibile e la nota descrive cosa misurerebbe e come deciderebbe.
+
+## Strumenti
+
+- **n8n** self-hosted (Docker, VPS Hostinger): i quattro workflow, tutte le chiamate ai modelli.
+- **Claude Haiku 4.5** (API Anthropic) per diagnosi e verifica di D2; **SDXL + ControlNet** e
+  **Real-ESRGAN** tramite **Replicate** per D3 e la super-risoluzione.
+- **Python 3.12, FastAPI, OpenCV**: `cv-service`, tutto ciò che è deterministico (correzioni,
+  controllo di fedeltà, dataset, record, tabellone). Trentacinque test con `pytest`.
+- **React 19, Vite, TypeScript, Tailwind 4**: il sito, pubblicato su **Vercel**.
+- **Claude Code** come strumento di supporto allo sviluppo; **GitHub** per codice e storia.
+
+## Struttura del repository
 
 ```
-cv-service/   servizio Python (FastAPI + OpenCV): pipeline di correzione, controllo di
-              fedeltà, dataset, record delle esecuzioni, giudizi, tabellone
-n8n/          i quattro workflow n8n (correct, product, choice, batch) e lo script che li genera
-frontend/     sito React: Prova (prodotto), Studio (test cieco), Esperimento (tabellone)
+cv-service/   servizio Python: pipeline di correzione, controllo di fedeltà, dataset, record,
+              giudizi, tabellone (api/experiment.py)
+n8n/          i quattro workflow (JSON generati), lo script che li genera, gli screenshot
+frontend/     sito React: Prova, Studio, Esperimento; copia statica in public/snapshot/
 prompts/      prompt del modello vision (diagnosi e verifica) e del giudice automatico
-dataset/      le foto di prova con le etichette manuali dei difetti
-experiments/  record delle esecuzioni, giudizi raccolti, calibrazione del controllo di fedeltà
-docs/         contratto dati, calibrazione del controllo di fedeltà, sorgente del PDF
+dataset/      le 24 foto con le etichette manuali dei difetti (labels.csv)
+experiments/  record delle esecuzioni (runs/), lista dello studio, calibrazione del controllo
+              di fedeltà, script di esportazione della copia statica
+docs/         contratto dati, calibrazione del controllo di fedeltà, sorgente della nota
+deploy/       docker-compose e script di aggiornamento del server
 ```
-
-## Tecnologie
-
-- **n8n** (self-hosted in Docker) per l'orchestrazione: quattro workflow generati da codice
-  (`n8n/build_workflows.py`), con i prompt letti da `prompts/` e gli indirizzi da `.env`.
-- **Python 3.12, FastAPI, OpenCV** per il servizio `cv-service`, che esegue tutto ciò che è
-  deterministico e gira come container accanto a n8n. Trentacinque test con `pytest`.
-- **Docker** sul server (Hostinger VPS), **Vercel** per il sito.
-- **React 19, Vite, TypeScript, Tailwind 4** per il sito, che parla soltanto con i webhook n8n.
-- **Claude Haiku 4.5** (diagnosi e verifica), **Claude Sonnet 5** (giudice automatico del batch),
-  **SDXL + ControlNet** e **Real-ESRGAN** su Replicate (parte generativa).
-- Sviluppo con **Claude Code**.
 
 ## Dove gira
 
-Il prototipo è pubblicato e funziona senza nulla di acceso sul computer di chi lo ha costruito:
-
-- il sito è su Vercel: https://immobiliare-photo-lab.vercel.app;
-- n8n è self-hosted su un VPS Hostinger (Docker), raggiungibile in https;
-- cv-service gira sullo stesso VPS come container Docker, sulla rete interna di n8n
+- Sito su Vercel: https://immobiliare-photo-lab.vercel.app (ogni push su `main` lo ricostruisce).
+- n8n self-hosted su un VPS Hostinger (Docker), in https.
+- cv-service sullo stesso VPS come container, sulla rete interna di n8n
   (`deploy/docker-compose.yml`), con `dataset/` ed `experiments/` montati dal repository clonato
-  sul server.
-
-Ogni push su `main` ricostruisce il sito da solo. Per aggiornare cv-service sul server basta
-`bash /opt/photo-lab/deploy/update.sh` (allinea il clone a `origin/main`, rebuild, riavvio,
-controllo di salute). I workflow n8n si aggiornano rigenerando i JSON e reimportandoli. Le
-risposte dello Studio si accumulano sul server in `experiments/judgments.csv`, fuori da git: si
-riportano nel repository con `scp` a studio concluso.
-
-## Di cosa c'è bisogno per farlo girare da zero
-
-- Python 3.12, Node 20 o superiore.
-- Un'istanza n8n (self-hosted con Docker, come sul VPS, oppure n8n Cloud) e, se cv-service gira in
-  locale, ngrok per esporlo.
-- Una chiave API Anthropic e un token Replicate. Le chiavi vanno in `.env`, che è ignorato da
-  git; `.env.example` elenca i nomi delle variabili e a cosa servono.
+  in `/opt/photo-lab`. Aggiornamento con `bash deploy/update.sh` (allinea il clone a
+  `origin/main`, rebuild, riavvio, controllo di salute). Le risposte dello Studio si accumulano
+  sul server in `experiments/judgments.csv`, fuori da git.
 
 ## Come si avvia
+
+Serve Python 3.12, Node 20 o superiore, un'istanza n8n (self-hosted con Docker oppure n8n
+Cloud), una chiave API Anthropic e un token Replicate. Le chiavi vanno in `.env`, ignorato da
+git; `.env.example` elenca le variabili.
 
 ### Sul server (come è pubblicato)
 
@@ -81,7 +183,7 @@ docker exec <container n8n> wget -qO- http://cv-service:8000/health   # {"status
 
 In `.env` locale si mette `CV_SERVICE_PUBLIC_URL=http://cv-service:8000`, si rigenerano i workflow
 e si importano nel n8n del server seguendo `n8n/README.md` (Correggi per primo, il suo
-identificativo in `.env` come `N8N_CORRECT_WORKFLOW_ID`, poi prodotto e scelte, credenziali sui
+identificativo in `.env` come `N8N_CORRECT_WORKFLOW_ID`, poi Prodotto e Scelte, credenziali sui
 nodi, Publish). Su Vercel si imposta `VITE_N8N_WEBHOOK_URL` con l'URL del webhook del prodotto.
 
 ### In locale (sviluppo)
@@ -104,20 +206,5 @@ nodi, Publish). Su Vercel si imposta `VITE_N8N_WEBHOOK_URL` con l'URL del webhoo
 6. Avviare il sito: `cd frontend`, `npm install`, `npm run dev`, e aprire `http://localhost:5173`.
 
 A ogni riavvio di ngrok l'indirizzo cambia: aggiornare `.env`, rigenerare i workflow e
-reimportarli. Il sito, anche senza backend, mostra Studio ed Esperimento dalla copia statica in
-`frontend/public/snapshot/` (rigenerabile con `experiments/scripts/export_snapshot.py`).
-
-## Come si usa
-
-- **Prova**: si carica una foto; dopo circa un minuto arrivano le tre versioni affiancate, ognuna
-  con la maniglia prima/dopo e la scheda del metodo: come decide, difetti trovati, moduli eseguiti
-  con i valori, tempo di elaborazione. Qui non si sceglie: la preferenza si misura nello Studio.
-- **Studio**: test cieco sulle foto del dataset. Per ogni foto il valutatore risponde a tre
-  domande senza sapere quale workflow ha prodotto cosa: realismo (originale accanto a una
-  versione, "vedi elementi finti o diversi?"), qualità (la sola versione, voto da 1 a 5) e foto
-  migliore (originale in alto, tre versioni, "quale useresti?"). Si può interrompere e riprendere.
-- **Esperimento**: il tabellone, ricalcolato a ogni apertura dai record e dai giudizi, con la
-  regola di decisione applicata.
-
-Il workflow batch rigenera le tre versioni per tutte le foto del dataset (con giudice
-automatico opzionale) ed è quello con cui sono state preparate le foto dello Studio.
+reimportarli. La copia statica del sito si rigenera con
+`experiments/scripts/export_snapshot.py` a cv-service acceso.
