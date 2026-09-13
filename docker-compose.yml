@@ -1,0 +1,21 @@
+# Insurance for the interview: everything local, no trial, no tunnel.
+#   docker compose up --build
+# n8n at http://localhost:5678 (import n8n/*.json), cv-service at http://cv-service:8000 from n8n.
+services:
+  cv-service:
+    build: ./cv-service
+    ports: ["8000:8000"]
+    env_file: .env
+  n8n:
+    image: n8nio/n8n:latest
+    ports: ["5678:5678"]
+    environment:
+      - CV_SERVICE_PUBLIC_URL=http://cv-service:8000
+      - N8N_SECURE_COOKIE=false
+    env_file: .env
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./dataset:/data/dataset:ro
+      - ./experiments:/data/experiments
+volumes:
+  n8n_data:
