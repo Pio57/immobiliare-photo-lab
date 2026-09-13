@@ -25,28 +25,28 @@ HTML = HERE / "nota.html"
 PDF = HERE / "immobiliare-photo-lab-nota.pdf"
 
 CSS = """
-@page { size: A4; margin: 18mm 17mm 20mm 17mm; }
-html { font-size: 10.6pt; }
-body { font-family: "Segoe UI", "Inter", system-ui, sans-serif; color: #241f1b; line-height: 1.5; max-width: 100%; }
-h1 { font-family: Georgia, "Fraunces", serif; font-weight: 600; font-size: 24pt; margin: 0 0 4pt; }
+@page { size: A4; margin: 11mm 12mm 11mm 12mm; }
+html { font-size: 8.8pt; }
+body { font-family: "Segoe UI", "Inter", system-ui, sans-serif; color: #241f1b; line-height: 1.33; max-width: 100%; }
+h1 { font-family: Georgia, "Fraunces", serif; font-weight: 600; font-size: 17pt; margin: 0 0 2pt; }
 h1 + p em { color: #7d7265; }
-h2 { font-family: Georgia, serif; font-weight: 600; font-size: 15.5pt; margin: 22pt 0 6pt; page-break-after: avoid; color: #241f1b; }
+h2 { font-family: Georgia, serif; font-weight: 600; font-size: 11.5pt; margin: 9pt 0 3pt; page-break-after: avoid; color: #241f1b; }
 h3 { font-size: 11.5pt; margin: 14pt 0 4pt; page-break-after: avoid; }
-p { margin: 0 0 8pt; text-align: justify; hyphens: auto; }
+p { margin: 0 0 5pt; text-align: justify; hyphens: auto; }
 table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt; font-size: 9.4pt; page-break-inside: avoid; }
 th, td { border-bottom: 1px solid #e8e0d4; padding: 4pt 6pt; vertical-align: top; text-align: left; }
 th { font-weight: 600; color: #514840; background: #f6f1e9; }
 code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 9pt; background: #f3eee6; padding: 0 3pt; border-radius: 3px; }
 pre { background: #f3eee6; padding: 8pt 10pt; border-radius: 6px; font-size: 8.8pt; overflow-x: auto; page-break-inside: avoid; }
 pre code { background: none; padding: 0; }
-figure { margin: 10pt 0 14pt; page-break-inside: avoid; text-align: center; }
+figure { margin: 5pt 0 7pt; page-break-inside: avoid; text-align: center; }
 figure img { max-width: 100%; max-height: 118mm; border: 1px solid #e8e0d4; border-radius: 6px; }
-figure.wide img { max-height: 70mm; }
-figcaption { font-size: 8.8pt; color: #7d7265; margin-top: 4pt; text-align: center; }
+figure.wide img { max-height: 36mm; }
+figcaption { font-size: 7.8pt; color: #7d7265; margin-top: 4pt; text-align: center; }
 hr { border: 0; border-top: 1px solid #d6cbbb; margin: 18pt 0; page-break-after: always; }
 a { color: #a94430; text-decoration: none; }
-ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
-li { margin-bottom: 3pt; }
+ul, ol { margin: 0 0 5pt; padding-left: 16pt; }
+li { margin-bottom: 2pt; }
 """
 
 
