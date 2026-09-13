@@ -563,28 +563,28 @@ def diagnoser_lane(nodes: list, connections: dict, *, variant: str, label: str, 
         # upright?". Asked alone the model never misses (22/22 on the bench); folded into the
         # diagnosis prompt it misses one strongly tilted photo out of three.
         nodes += [
-            code(f"{variant}: verso richiesta", turn_request_js(model), x - 440, y + 160),
-            http_anthropic(f"{variant}: verso modello", x - 220, y + 160, keep_alive=True),
-            code(f"{variant}: richiesta", build_request_js(model, image_expr, stats_expr, f"{variant}: verso"), x, y),
-            http_anthropic(f"{variant}: modello", x + 220, y, keep_alive=True),
-            code(f"{variant}: lettura", parse_js(model, f"{variant}: richiesta"), x + 440, y),
-            code(f"{variant}: piano", plan_js(variant, label, "Prepara", f"{variant}: lettura", input_expr, save_as_expr), x + 660, y),
+            code(f"{variant}: verso richiesta", turn_request_js(model), x, y),
+            http_anthropic(f"{variant}: verso modello", x + 220, y, keep_alive=True),
+            code(f"{variant}: richiesta", build_request_js(model, image_expr, stats_expr, f"{variant}: verso"), x + 440, y),
+            http_anthropic(f"{variant}: modello", x + 660, y, keep_alive=True),
+            code(f"{variant}: lettura", parse_js(model, f"{variant}: richiesta"), x + 880, y),
+            code(f"{variant}: piano", plan_js(variant, label, "Prepara", f"{variant}: lettura", input_expr, save_as_expr), x + 1100, y),
         ]
         connect(connections, src, f"{variant}: verso richiesta")
         chain(connections, [f"{variant}: verso richiesta", f"{variant}: verso modello", f"{variant}: richiesta", f"{variant}: modello", f"{variant}: lettura", f"{variant}: piano"])
-    nodes.append(execute_workflow(f"{variant}: Correggi", correct_id, x + 900, y))
+    nodes.append(execute_workflow(f"{variant}: Correggi", correct_id, x + (900 if model is None else 1340), y))
     connect(connections, f"{variant}: piano", f"{variant}: Correggi")
     record = f"Record {variant}"
     if second_look:
         nodes += [
-            code(f"{variant}: verifica richiesta", build_review_js(model, variant, original_expr, corrected_expr), x + 1120, y),
-            http_anthropic(f"{variant}: verifica modello", x + 1340, y, keep_alive=True),
-            code(f"{variant}: verifica lettura", parse_js(model, f"{variant}: verifica richiesta"), x + 1560, y),
-            if_bool(f"{variant}: secondo giro?", "$json.verdict === 'adjust' && $json.plan !== null", x + 1780, y),
-            code(f"{variant}: piano 2", plan_js(variant, label, "Prepara", f"{variant}: verifica lettura", input_expr, save_as_expr), x + 2000, y - 80),
-            execute_workflow(f"{variant}: Correggi 2", correct_id, x + 2220, y - 80),
-            code(f"{variant}: tieni il primo", f"return {{ json: $('{variant}: verifica richiesta').first().json.correggi }};", x + 2000, y + 100),
-            code(record, record_js(variant, True, chained_to), x + 2440, y),
+            code(f"{variant}: verifica richiesta", build_review_js(model, variant, original_expr, corrected_expr), x + 1560, y),
+            http_anthropic(f"{variant}: verifica modello", x + 1780, y, keep_alive=True),
+            code(f"{variant}: verifica lettura", parse_js(model, f"{variant}: verifica richiesta"), x + 2000, y),
+            if_bool(f"{variant}: secondo giro?", "$json.verdict === 'adjust' && $json.plan !== null", x + 2220, y),
+            code(f"{variant}: piano 2", plan_js(variant, label, "Prepara", f"{variant}: verifica lettura", input_expr, save_as_expr), x + 2440, y - 80),
+            execute_workflow(f"{variant}: Correggi 2", correct_id, x + 2660, y - 80),
+            code(f"{variant}: tieni il primo", f"return {{ json: $('{variant}: verifica richiesta').first().json.correggi }};", x + 2440, y + 100),
+            code(record, record_js(variant, True, chained_to), x + 2880, y),
         ]
         chain(connections, [f"{variant}: Correggi", f"{variant}: verifica richiesta", f"{variant}: verifica modello",
                             f"{variant}: verifica lettura", f"{variant}: secondo giro?"])
@@ -593,7 +593,7 @@ def diagnoser_lane(nodes: list, connections: dict, *, variant: str, label: str, 
         connect(connections, f"{variant}: secondo giro?", f"{variant}: tieni il primo", output=1)
         connect(connections, f"{variant}: tieni il primo", record)
     else:
-        nodes.append(code(record, record_js(variant, False, chained_to), x + 1120, y))
+        nodes.append(code(record, record_js(variant, False, chained_to), x + (1120 if model is None else 1560), y))
         connect(connections, f"{variant}: Correggi", record)
     return record
 
@@ -768,7 +768,7 @@ return { json: { image_id: prep.image_id, source: 'live', judge: [], order,
     for i, (variant, (label, model, second_look)) in enumerate(DIAGNOSERS.items()):
         y = 120 + i * 320
         title, body, colour = LANE_NOTES[variant]
-        nodes.append(sticky(title, body, 620, y - 100, 3000, 300, colour))
+        nodes.append(sticky(title, body, 620, y - 100, 3500, 300, colour))
         record = diagnoser_lane(
             nodes, connections, variant=variant, label=label, model=model, second_look=second_look,
             src="Rispondi subito", x=920, y=y, correct_id=correct_id,
@@ -780,7 +780,7 @@ return { json: { image_id: prep.image_id, source: 'live', judge: [], order,
         connect(connections, record, "Attendi le 3 versioni", index=i)
     y = 120 + len(DIAGNOSERS) * 320
     title, body, colour = LANE_NOTES[GENERATIVE]
-    nodes.append(sticky(title, body, 620, y - 100, 3000, 300, colour))
+    nodes.append(sticky(title, body, 620, y - 100, 3500, 300, colour))
     record = generative_lane(nodes, connections, src="Rispondi subito", x=920, y=y, cv_url=cv_url,
                              image_expr="`data:image/jpeg;base64,${$('D3: shrink').first().json.image_b64}`",
                              original_ref_expr="original_b64: $('Prepara').first().json.image_b64",
@@ -894,7 +894,7 @@ return $input.first().json.images.filter(i => !want.length || want.includes(i.im
     for i, (variant, (label, model, second_look)) in enumerate(DIAGNOSERS.items()):
         y = 120 + i * 300
         title, body, colour = LANE_NOTES[variant]
-        nodes.append(sticky(title, body, 1800, y - 100, 3300, 280, colour))
+        nodes.append(sticky(title, body, 1800, y - 100, 3800, 280, colour))
         record = diagnoser_lane(
             nodes, connections, variant=variant, label=label, model=model, second_look=second_look,
             src=src, x=1900, y=y, correct_id=correct_id,
@@ -907,7 +907,7 @@ return $input.first().json.images.filter(i => !want.length || want.includes(i.im
         src = record  # sequential: one photo at a time through the free tunnel
     y = 120 + len(DIAGNOSERS) * 300
     title, body, colour = LANE_NOTES[GENERATIVE]
-    nodes.append(sticky(title, body, 1800, y - 100, 3300, 280, colour))
+    nodes.append(sticky(title, body, 1800, y - 100, 3800, 280, colour))
     prev_record = generative_lane(nodes, connections, src=src, x=1900, y=y, cv_url=cv_url,
                                   image_expr="`${$('Config').first().json.cv_url}/dataset/${prep.image_id}/file?max_side=1024`",
                                   original_ref_expr="image_id: $('Prepara').first().json.image_id",

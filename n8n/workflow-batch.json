@@ -215,7 +215,7 @@
       "parameters": {
         "content": "## D1 - Regole\nRegole sui numeri misurati da /prepare decidono cosa correggere e con quali valori. Zero modelli, costo 0. La baseline: se un modello non la batte, non serve.",
         "height": 280,
-        "width": 3300,
+        "width": 3800,
         "color": 5
       }
     },
@@ -277,7 +277,7 @@
       "parameters": {
         "content": "## D2 - Haiku + verifica\nPrima il verso, come domanda a parte: la foto girata in quattro modi, 'qual e' quella dritta?' (a scelta non sbaglia, a gradi si'). Poi il modello guarda foto + numeri, nomina i difetti (vocabolario fisso), sceglie i VALORI dei moduli che servono. Poi guarda il RISULTATO accanto all'originale: se vede ancora un difetto (o uno nuovo: velo, chiazze, cera) corregge il piano e rifa' un giro. Il flusso agentico chiuso.",
         "height": 280,
-        "width": 3300,
+        "width": 3800,
         "color": 3
       }
     },
@@ -286,8 +286,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1460,
-        580
+        1900,
+        420
       ],
       "parameters": {
         "jsCode": "\n// Orientation as a four-way choice: the same photo at 0/90/180/270 deg clockwise (see /prepare).\nconst prep = $('Prepara').first().json;\nconst content = [];\n(prep.turns || []).forEach((t, i) => { content.push({ type: 'text', text: 'ABCD'[i] + ':' });\n  content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: t } }); });\ncontent.push({ type: 'text', text: 'These are the same interior photo turned four ways. Exactly one is upright: floor at the bottom, ceiling at the top, walls vertical, furniture standing on the floor. Answer with the letter only.' });\nreturn { json: { image_id: prep.image_id, t0: Date.now(),\n  body: { model: \"claude-haiku-4-5\", max_tokens: 5, thinking: { type: 'disabled' }, messages: [{ role: 'user', content }] } } };\n",
@@ -296,53 +296,6 @@
     },
     {
       "name": "D2: verso modello",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1680,
-        580
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.body) }}",
-        "options": {
-          "timeout": 120000
-        }
-      },
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 3000,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "name": "D2: richiesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1900,
-        420
-      ],
-      "parameters": {
-        "jsCode": "\n// AI diagnoser request. Prompt text comes from prompts/diagnosis.md (generated, do not edit here).\nconst SYSTEM = \"You are a photo technician for a real-estate listings platform. You receive one\\ncover photo an estate agent just took with a phone, plus measured statistics.\\nYour job has two parts:\\n\\n1. **Diagnose**: name the technical defects, from this fixed vocabulary only —\\n   `underexposed` (dark), `overexposed` (washed out, bright areas with no detail),\\n   `backlit` (window blows out, room dark), `color_cast`\\n   (orange tungsten, blue window light, green neon), `noise` (visible grain),\\n   `tilt` (verticals or horizon lean), `rotated` (the whole photo is on its side or upside\\n   down: floor at the top, walls horizontal), `compressed` (JPEG blocks, was sent through\\n   a messaging app), `low_resolution` (small, soft; the pipeline then runs a labelled\\n   AI super-resolution step before your corrections). Empty list = nothing wrong.\\n2. **Plan**: for each defect you found, set the parameter of the module that fixes it.\\n   Leave every other parameter at its neutral value: a module that is not needed\\n   is not run. A photo that is only tilted is only rotated.\\n\\nModules and their parameters (values outside the range are clamped):\\n- Colour — `white_balance` 0–1, strength of gray-world correction. 0 = module off.\\n  Use > 0.5 only with a clear cast.\\n- Light — `exposure` in stops, -2 to +2: POSITIVE = brighter, negative = darker,\\n  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); an `overexposed`,\\n  washed-out photo needs -0.5 to -1. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for\\n  flat photos). For `backlit` use a moderate `exposure` (+0.5 to +1) and `clahe_clip`\\n  2–3: the window will stay bright, the room comes up.\\n- Clean — `denoise` 0–15, non-local-means strength. 0 = off. 5–10 for evening grain.\\n  On `compressed` input set at least 4 even if there is no grain: it hides the JPEG\\n  blocks that brightening would reveal. On `compressed` input also keep `clahe_clip`\\n  at 0 and `sharpen` at most 0.2: local contrast turns the blocks into blotches on\\n  flat walls.\\n- Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set\\n  `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a\\n  crisp photo. It amplifies edges that exist, it cannot add detail.\\n- Turn — a photo on its side or upside down (`rotated`) gets a lossless quarter turn\\n  decided by a separate question (the photo turned four ways, \\\"which one is upright?\\\"),\\n  not by you: just name the defect. Judge the lean (`tilt`) on the upright version.\\n- Straighten — `rotate_deg` -15–15, positive = counter-clockwise. 0 = off.\\n  The measured `tilt_deg` is what the pipeline found from straight lines; when it is\\n  not 0 it is applied as measured and your value is ignored. When it is 0 the\\n  detector found no usable lines, which does NOT mean the photo is straight: **check\\n  the geometry yourself, always**, before anything else. Compare the walls, door\\n  frames, wall corners, headboards, shelves and the ceiling line with the edges of\\n  the picture: in a straight photo they are parallel to the edges. If they all lean\\n  the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line\\n  whose RIGHT end is LOWER than its left end needs a POSITIVE value\\n  (counter-clockwise); right end higher, negative. Typical hand-held tilt is 2–6\\n  degrees. Above 15 degrees no rotation can fix it without cutting away too much:\\n  keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice.\\n\\nYou may only correct exposure, local contrast, white balance, sensor noise and\\ncamera tilt. Never describe or request a change to the content of the photo\\n(objects, walls, sky, furniture). Cracks, mould, stains are part of the truthful\\nrepresentation of the property: leave them, do not mention them as defects.\\n\\n**The correction has a cost.** Brightening also brightens the noise hiding in the\\nshadows; strong local contrast makes grain and halos visible; denoising cannot\\nremove luminance grain without smoothing wall texture. `noise_after_brightening`\\nin the statistics is this cost, already computed: above ~3 the photo will look\\ngrainy once exposed correctly. So the plan also carries a `recommendation`:\\n- `apply` — default. Real defect, `noise_after_brightening` below ~3.\\n- `mild` — every value is halved. Only when the correction would be self-defeating:\\n  `noise_after_brightening` above ~3. `compressed` alone is not a reason.\\n- `keep_original` — nothing is applied. Only when correcting cannot help: no defect\\n  found (`mean_luminance` 110–150, `color_cast` within ±4, and you have checked that\\n  the walls are vertical), or the photo is\\n  so degraded (`low_resolution` plus `noise_after_brightening` above ~5) that any\\n  correction makes it visibly worse.\\n\\nFinally, **advise** on what no module can fix but the agent should know, from this\\nvocabulary: `blur` (motion or focus), `perspective` (wide-angle keystone, walls\\nconverge), `clutter` (objects that distract from the room), `reshoot` (the photo is\\nbeyond correction). Empty list when there is nothing to say.\\n\\nBe conservative: a correction that is too weak is fixed by the user with one more\\nclick; one that is too strong is rejected by the fidelity gate and the module is skipped.\";\nconst USER = \"Measured statistics of this photo:\\n```json\\n{{ $json.stats }}\\n```\\nTypical values: `mean_luminance` 110–150 is well exposed, < 90 is dark;\\n`contrast_std` < 40 is flat; `color_cast` (a, b) beyond ±6 is a visible cast;\\n`noise_estimate` > 2 is visible grain; `tilt_deg` is the rotation the pipeline\\nfound on its own (0 = no usable straight lines found, not \\\"straight\\\": judge the\\ngeometry from the picture).\\n\\nReturn only a JSON object with exactly these keys:\\n`defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,\\n`denoise`, `sharpen`, `rotate_deg`, `recommendation`, `advice` (list from the fixed vocabulary),\\n`reason` (one sentence in Italian, written for the estate agent, not for an engineer:\\nwhat you found and what you decided).\";\nconst stats = $('Prepara').first().json.stats;\nconst user = USER.replace('{{ $json.stats }}', JSON.stringify(stats, null, 2));\nlet orientation = 0, turn_cost = 0, turn_latency = 0;\n// The letter of the orientation question -> clockwise quarter turn (no answer = as uploaded).\nconst tr = $input.item.json;\nconst t_req = $('D2: verso richiesta').first().json;\nconst t_text = ((tr.content || []).map(c => c.text || '').join('')).toUpperCase();\nconst t_letter = ['A', 'B', 'C', 'D'].find(l => t_text.includes(l));\norientation = t_letter ? [0, 90, 180, 270]['ABCD'.indexOf(t_letter)] : 0;\nturn_cost = tr.usage ? tr.usage.input_tokens * 1.0 / 1e6 + tr.usage.output_tokens * 5.0 / 1e6 : 0;\nturn_latency = Date.now() - t_req.t0;\nreturn { json: { t0: Date.now(), model: \"claude-haiku-4-5\", orientation, turn_cost, turn_latency,\n  body: { model: \"claude-haiku-4-5\", max_tokens: 600, thinking: { type: 'disabled' }, system: SYSTEM,\n    messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'url', url: `${$('Config').first().json.cv_url}/dataset/${$('Current image').first().json.image_id}/file?max_side=1024` } }, { type: 'text', text: user } ] }] } } };\n",
-        "mode": "runOnceForEachItem"
-      }
-    },
-    {
-      "name": "D2: modello",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -376,11 +329,58 @@
       "onError": "continueRegularOutput"
     },
     {
-      "name": "D2: lettura",
+      "name": "D2: richiesta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         2340,
+        420
+      ],
+      "parameters": {
+        "jsCode": "\n// AI diagnoser request. Prompt text comes from prompts/diagnosis.md (generated, do not edit here).\nconst SYSTEM = \"You are a photo technician for a real-estate listings platform. You receive one\\ncover photo an estate agent just took with a phone, plus measured statistics.\\nYour job has two parts:\\n\\n1. **Diagnose**: name the technical defects, from this fixed vocabulary only —\\n   `underexposed` (dark), `overexposed` (washed out, bright areas with no detail),\\n   `backlit` (window blows out, room dark), `color_cast`\\n   (orange tungsten, blue window light, green neon), `noise` (visible grain),\\n   `tilt` (verticals or horizon lean), `rotated` (the whole photo is on its side or upside\\n   down: floor at the top, walls horizontal), `compressed` (JPEG blocks, was sent through\\n   a messaging app), `low_resolution` (small, soft; the pipeline then runs a labelled\\n   AI super-resolution step before your corrections). Empty list = nothing wrong.\\n2. **Plan**: for each defect you found, set the parameter of the module that fixes it.\\n   Leave every other parameter at its neutral value: a module that is not needed\\n   is not run. A photo that is only tilted is only rotated.\\n\\nModules and their parameters (values outside the range are clamped):\\n- Colour — `white_balance` 0–1, strength of gray-world correction. 0 = module off.\\n  Use > 0.5 only with a clear cast.\\n- Light — `exposure` in stops, -2 to +2: POSITIVE = brighter, negative = darker,\\n  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); an `overexposed`,\\n  washed-out photo needs -0.5 to -1. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for\\n  flat photos). For `backlit` use a moderate `exposure` (+0.5 to +1) and `clahe_clip`\\n  2–3: the window will stay bright, the room comes up.\\n- Clean — `denoise` 0–15, non-local-means strength. 0 = off. 5–10 for evening grain.\\n  On `compressed` input set at least 4 even if there is no grain: it hides the JPEG\\n  blocks that brightening would reveal. On `compressed` input also keep `clahe_clip`\\n  at 0 and `sharpen` at most 0.2: local contrast turns the blocks into blotches on\\n  flat walls.\\n- Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set\\n  `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a\\n  crisp photo. It amplifies edges that exist, it cannot add detail.\\n- Turn — a photo on its side or upside down (`rotated`) gets a lossless quarter turn\\n  decided by a separate question (the photo turned four ways, \\\"which one is upright?\\\"),\\n  not by you: just name the defect. Judge the lean (`tilt`) on the upright version.\\n- Straighten — `rotate_deg` -15–15, positive = counter-clockwise. 0 = off.\\n  The measured `tilt_deg` is what the pipeline found from straight lines; when it is\\n  not 0 it is applied as measured and your value is ignored. When it is 0 the\\n  detector found no usable lines, which does NOT mean the photo is straight: **check\\n  the geometry yourself, always**, before anything else. Compare the walls, door\\n  frames, wall corners, headboards, shelves and the ceiling line with the edges of\\n  the picture: in a straight photo they are parallel to the edges. If they all lean\\n  the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line\\n  whose RIGHT end is LOWER than its left end needs a POSITIVE value\\n  (counter-clockwise); right end higher, negative. Typical hand-held tilt is 2–6\\n  degrees. Above 15 degrees no rotation can fix it without cutting away too much:\\n  keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice.\\n\\nYou may only correct exposure, local contrast, white balance, sensor noise and\\ncamera tilt. Never describe or request a change to the content of the photo\\n(objects, walls, sky, furniture). Cracks, mould, stains are part of the truthful\\nrepresentation of the property: leave them, do not mention them as defects.\\n\\n**The correction has a cost.** Brightening also brightens the noise hiding in the\\nshadows; strong local contrast makes grain and halos visible; denoising cannot\\nremove luminance grain without smoothing wall texture. `noise_after_brightening`\\nin the statistics is this cost, already computed: above ~3 the photo will look\\ngrainy once exposed correctly. So the plan also carries a `recommendation`:\\n- `apply` — default. Real defect, `noise_after_brightening` below ~3.\\n- `mild` — every value is halved. Only when the correction would be self-defeating:\\n  `noise_after_brightening` above ~3. `compressed` alone is not a reason.\\n- `keep_original` — nothing is applied. Only when correcting cannot help: no defect\\n  found (`mean_luminance` 110–150, `color_cast` within ±4, and you have checked that\\n  the walls are vertical), or the photo is\\n  so degraded (`low_resolution` plus `noise_after_brightening` above ~5) that any\\n  correction makes it visibly worse.\\n\\nFinally, **advise** on what no module can fix but the agent should know, from this\\nvocabulary: `blur` (motion or focus), `perspective` (wide-angle keystone, walls\\nconverge), `clutter` (objects that distract from the room), `reshoot` (the photo is\\nbeyond correction). Empty list when there is nothing to say.\\n\\nBe conservative: a correction that is too weak is fixed by the user with one more\\nclick; one that is too strong is rejected by the fidelity gate and the module is skipped.\";\nconst USER = \"Measured statistics of this photo:\\n```json\\n{{ $json.stats }}\\n```\\nTypical values: `mean_luminance` 110–150 is well exposed, < 90 is dark;\\n`contrast_std` < 40 is flat; `color_cast` (a, b) beyond ±6 is a visible cast;\\n`noise_estimate` > 2 is visible grain; `tilt_deg` is the rotation the pipeline\\nfound on its own (0 = no usable straight lines found, not \\\"straight\\\": judge the\\ngeometry from the picture).\\n\\nReturn only a JSON object with exactly these keys:\\n`defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,\\n`denoise`, `sharpen`, `rotate_deg`, `recommendation`, `advice` (list from the fixed vocabulary),\\n`reason` (one sentence in Italian, written for the estate agent, not for an engineer:\\nwhat you found and what you decided).\";\nconst stats = $('Prepara').first().json.stats;\nconst user = USER.replace('{{ $json.stats }}', JSON.stringify(stats, null, 2));\nlet orientation = 0, turn_cost = 0, turn_latency = 0;\n// The letter of the orientation question -> clockwise quarter turn (no answer = as uploaded).\nconst tr = $input.item.json;\nconst t_req = $('D2: verso richiesta').first().json;\nconst t_text = ((tr.content || []).map(c => c.text || '').join('')).toUpperCase();\nconst t_letter = ['A', 'B', 'C', 'D'].find(l => t_text.includes(l));\norientation = t_letter ? [0, 90, 180, 270]['ABCD'.indexOf(t_letter)] : 0;\nturn_cost = tr.usage ? tr.usage.input_tokens * 1.0 / 1e6 + tr.usage.output_tokens * 5.0 / 1e6 : 0;\nturn_latency = Date.now() - t_req.t0;\nreturn { json: { t0: Date.now(), model: \"claude-haiku-4-5\", orientation, turn_cost, turn_latency,\n  body: { model: \"claude-haiku-4-5\", max_tokens: 600, thinking: { type: 'disabled' }, system: SYSTEM,\n    messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'url', url: `${$('Config').first().json.cv_url}/dataset/${$('Current image').first().json.image_id}/file?max_side=1024` } }, { type: 'text', text: user } ] }] } } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: modello",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "D2: lettura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2780,
         420
       ],
       "parameters": {
@@ -393,7 +393,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2560,
+        3000,
         420
       ],
       "parameters": {
@@ -406,7 +406,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        2800,
+        3240,
         420
       ],
       "parameters": {
@@ -427,7 +427,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3020,
+        3460,
         420
       ],
       "parameters": {
@@ -440,7 +440,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3240,
+        3680,
         420
       ],
       "parameters": {
@@ -474,7 +474,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3460,
+        3900,
         420
       ],
       "parameters": {
@@ -487,7 +487,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3680,
+        4120,
         420
       ],
       "parameters": {
@@ -519,7 +519,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3900,
+        4340,
         340
       ],
       "parameters": {
@@ -532,7 +532,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        4120,
+        4560,
         340
       ],
       "parameters": {
@@ -553,7 +553,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3900,
+        4340,
         520
       ],
       "parameters": {
@@ -566,7 +566,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4340,
+        4780,
         420
       ],
       "parameters": {
@@ -585,7 +585,7 @@
       "parameters": {
         "content": "## D3 - Generativo\nSDXL + ControlNet (Replicate) riceve la foto e l'istruzione 'ben esposta, colori naturali, pulita, nitida, stanza invariata' e RIDISEGNA i pixel. Un colpo solo, niente moduli, non puo' raddrizzare. Stesso gate: e' l'unico che puo' violare la policy, quindi l'unico che il gate boccia davvero.",
         "height": 280,
-        "width": 3300,
+        "width": 3800,
         "color": 6
       }
     },
