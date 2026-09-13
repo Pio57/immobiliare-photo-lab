@@ -19,6 +19,10 @@ TILT_H_MIN_LINES = 8  # horizontals fallback: stricter on every count
 TILT_H_MIN_CONSENSUS = 0.7
 TILT_ONE_SIDED_MAX = 3.0  # with witnesses on one side only, larger angles are not trusted
 TILT_H_MIN_DEG = 3.0  # perspective residuals on horizontals are small; real tilt that shows there is not
+TILT_LSD_MIN_DEG = 3.0  # second opinion from the longest segments: below this it is not worth a crop
+TILT_LSD_TOP = 8  # longest LSD segments consulted
+TILT_LSD_SPREAD = 8.0  # they must agree within this many degrees, all leaning the same way
+TILT_BEYOND_MARGIN = 2.0  # past limit + margin the roll is reported as measured, not clipped: reshoot
 
 # ------------------------------------------------------------------- input
 
@@ -193,9 +197,52 @@ def estimate_tilt(img: np.ndarray) -> float:
         if median is not None and abs(median) < TILT_H_MIN_DEG:
             median = None
     if median is None or abs(median) < TILT_MIN_DEG:
-        return 0.0
+        # Nothing usable from Hough: second opinion from the longest segments (LSD),
+        # which also sees rolls beyond the windows above. A value past the rotation
+        # limit is returned as measured: the callers turn it into "tilt, reshoot"
+        # instead of a half correction.
+        roll = estimate_strong_roll(img)
+        if roll is None:
+            return 0.0
+        median = roll
     limit = settings.max_rotate_deg
+    if abs(median) > limit + TILT_BEYOND_MARGIN:
+        return float(median)
     return float(np.clip(median, -limit, limit))
+
+
+def estimate_strong_roll(img: np.ndarray) -> float | None:
+    """Roll read off the longest line segments (LSD follows low-contrast wall corners
+    and ceiling lines that Canny + Hough miss). The longest few segments of a room are
+    architectural; when, outliers dropped, they all lean the same way by 3 deg or more
+    and agree with each other, the photo is rolled, not keystoned. Bench on the 24
+    dataset photos: no false positive above 3 deg (img_006 splits -25/-5 and fails the
+    spread test; img_025 stops at 2.9); img_024 -10, a 23-deg phone shot -23.5."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    detected = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD).detect(gray)[0]
+    if detected is None:
+        return None
+    devs = []
+    for x1, y1, x2, y2 in detected[:, 0]:
+        angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
+        if angle < 0:
+            angle += 180
+        dev_v = angle - 90
+        dev_h = angle if angle <= 90 else angle - 180
+        dev = dev_v if abs(dev_v) <= 30 else (dev_h if abs(dev_h) <= 30 else None)
+        if dev is not None:
+            devs.append((math.hypot(x2 - x1, y2 - y1), dev))
+    if len(devs) < TILT_LSD_TOP:
+        return None
+    devs.sort(key=lambda t: -t[0])
+    top = np.array([d for _, d in devs[:TILT_LSD_TOP]])
+    median = float(np.median(top))
+    kept = np.sort(np.abs(top - median).argsort()[: TILT_LSD_TOP - 2])  # drop the two outliers
+    core = top[kept]
+    if (core.max() - core.min()) > TILT_LSD_SPREAD or np.any(core * median <= 0):
+        return None
+    median = float(np.median(core))
+    return median if abs(median) >= TILT_LSD_MIN_DEG else None
 
 
 def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
@@ -333,7 +380,7 @@ def heuristic_defects(stats: ImageStats, params: EnhanceParams) -> list[str]:
         found.append("color_cast")
     if params.denoise > 0 and stats.noise_estimate >= 2.0:
         found.append("noise")
-    if abs(params.rotate_deg) >= TILT_MIN_DEG:
+    if abs(params.rotate_deg) >= TILT_MIN_DEG or abs(stats.tilt_deg) > settings.max_rotate_deg:
         found.append("tilt")
     for w in stats.input_warnings:
         if w.startswith("heavy_compression"):
@@ -383,7 +430,8 @@ def auto_params(img: np.ndarray, stats: ImageStats | None = None) -> EnhancePara
         clahe_clip=clahe,
         white_balance=round(wb, 2),
         denoise=denoise,
-        rotate_deg=s.tilt_deg,
+        # a roll beyond the limit is reported, not half-corrected (see estimate_strong_roll)
+        rotate_deg=s.tilt_deg if abs(s.tilt_deg) <= settings.max_rotate_deg else 0.0,
     )
 
 

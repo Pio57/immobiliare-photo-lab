@@ -61,6 +61,8 @@ def _stats(img) -> ImageStats:
     stats.input_warnings = pipeline.input_warnings(img, _encoded_bytes.get(id(img)))
     if _trimmed.get(id(img)):
         stats.input_warnings.append(_trimmed[id(img)])
+    if abs(stats.tilt_deg) > settings.max_rotate_deg:  # rolled beyond what a rotation can fix: reshoot
+        stats.input_warnings.append(f"tilt_beyond_range:{stats.tilt_deg:+.1f}deg")
     return stats
 
 

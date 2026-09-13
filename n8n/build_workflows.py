@@ -264,7 +264,14 @@ const plan = {{ ...d.plan }};
 // the angle less so; and the gate cannot catch a wrong sign (it aligns the original).
 const measured = Number(prep.stats.tilt_deg || 0);
 const fixes = [];
-if (measured !== 0 && plan.rotate_deg !== measured) {{ plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }}
+const defects = [...(d.defects || [])], advice = [...(d.advice || [])];
+if (Math.abs(measured) > 10) {{
+  // Rolled beyond the rotation limit: no half correction, the agent is told to reshoot.
+  if (plan.rotate_deg !== 0) fixes.push(`rotate_deg ${{plan.rotate_deg}} -> 0 (tilt ${{measured}} beyond range)`);
+  plan.rotate_deg = 0;
+  if (!defects.includes('tilt')) defects.push('tilt');
+  if (!advice.includes('reshoot')) advice.push('reshoot');
+}} else if (measured !== 0 && plan.rotate_deg !== measured) {{ plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }}
 // A plan that darkens a dark photo (or brightens a bright one) is a sign error, not
 // a judgement: flip it and say so in the record, so the batch can count how often.
 const luma = Number(prep.stats.mean_luminance || 128);
@@ -279,7 +286,7 @@ if (d.recommendation === 'keep_original') Object.assign(plan, {json.dumps(NEUTRA
 plan.recommendation = d.recommendation === 'mild' ? 'mild' : 'apply';
 return {{ json: {{ variant: {js_string(variant)}, label: {js_string(label)}, image_id: prep.image_id, source, model: d.model || null, verdict: d.verdict || null,
   input: {{ ...{input_expr}, low_resolution: (prep.stats.input_warnings || []).some(w => String(w).startsWith('low_resolution')) }}, save_as: {save_as_expr},
-  plan, plan_fixes: fixes, defects: d.defects, advice: d.advice, reason: d.reason, recommendation: d.recommendation,
+  plan, plan_fixes: fixes, defects, advice, reason: d.reason, recommendation: d.recommendation,
   diagnosis_cost_usd: d.cost_usd, diagnosis_latency_ms: d.latency_ms, diagnosis_error: d.error, t0: Date.now() }} }};
 """
 

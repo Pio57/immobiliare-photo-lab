@@ -68,7 +68,10 @@ registrata in `plan_fixes` e contata nel tabellone:
 3. su input compresso `clahe_clip` va a 0 e `sharpen` a non più di 0,2 (il contrasto locale
    amplifica i blocchi JPEG sui muri piatti);
 4. `exposure` in stop diventa `gamma = 2^(−exposure/2)`: il modello ragiona in "più chiara di
-   uno stop", non in gamma, che i modelli invertono di frequente.
+   uno stop", non in gamma, che i modelli invertono di frequente;
+5. se l'inclinazione misurata supera i 12°, nessuna rotazione (il ritaglio necessario butterebbe
+   via troppa foto): il piano azzera `rotate_deg`, segna il difetto `tilt` e aggiunge il consiglio
+   `reshoot`. Vale anche per le regole (D1).
 
 Se il modello non risponde o il JSON non è leggibile, il piano ricade su quello delle regole e
 la versione viene marcata `error` con `source: heuristic`: l'agente riceve comunque una foto.
@@ -257,9 +260,12 @@ FastAPI, Python 3.12, OpenCV. Trentacinque test (`pytest`). Configurazione in `a
 `white_balance`; livelli automatici (nero al percentile 0,5) e gamma; CLAHE con `clahe_clip`;
 denoise non-local means con forza `denoise` scalata sulla risoluzione; rotazione di `rotate_deg`
 con ritaglio al rettangolo pieno (il `crop_pct` viene riportato); maschera di contrasto con
-`sharpen`. `analyze` produce le misure; `estimate_tilt` usa le linee verticali, con le
+`sharpen`. `analyze` produce le misure; `estimate_tilt` usa le linee verticali (Canny + Hough), con le
 orizzontali solo come riserva a consenso stretto, e con linee da un lato solo accetta soltanto
-inclinazioni fino a 3° (una prospettiva non è una rotazione). `auto_params` sono le regole di D1:
+inclinazioni fino a 3° (una prospettiva non è una rotazione); se non trova nulla chiede una seconda
+opinione ai segmenti più lunghi (LSD, che segue anche spigoli a basso contrasto): se, tolti due
+valori anomali, pendono tutti dalla stessa parte di almeno 3° e concordano entro 8°, quella è la
+rotazione; oltre i 12° viene riportata ma non applicata. `auto_params` sono le regole di D1:
 su input compresso spegne CLAHE, alza il denoise e limita la nitidezza.
 
 ### 4.3 Il controllo di fedeltà (`app/core/metrics.py`)

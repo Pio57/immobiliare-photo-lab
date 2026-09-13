@@ -41,10 +41,15 @@ Modules and their parameters (values outside the range are clamped):
 - Straighten — `rotate_deg` -10–10, positive = counter-clockwise. 0 = off.
   The measured `tilt_deg` is what the pipeline found from straight lines; when it is
   not 0 it is applied as measured and your value is ignored. When it is 0 the
-  detector found no usable lines: **look at the photo yourself** and, if a headboard,
-  a shelf or the floor line visibly leans, set `rotate_deg`. Sign: a line whose
-  RIGHT end is LOWER than its left end needs a POSITIVE value (counter-clockwise);
-  right end higher, negative. Typical hand-held tilt is 2–6 degrees.
+  detector found no usable lines, which does NOT mean the photo is straight: **check
+  the geometry yourself, always**, before anything else. Compare the walls, door
+  frames, wall corners, headboards, shelves and the ceiling line with the edges of
+  the picture: in a straight photo they are parallel to the edges. If they all lean
+  the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line
+  whose RIGHT end is LOWER than its left end needs a POSITIVE value
+  (counter-clockwise); right end higher, negative. Typical hand-held tilt is 2–6
+  degrees. Above 10 degrees no rotation can fix it without cutting away too much:
+  keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice.
 
 You may only correct exposure, local contrast, white balance, sensor noise and
 camera tilt. Never describe or request a change to the content of the photo
@@ -60,7 +65,8 @@ grainy once exposed correctly. So the plan also carries a `recommendation`:
 - `mild` — every value is halved. Only when the correction would be self-defeating:
   `noise_after_brightening` above ~3. `compressed` alone is not a reason.
 - `keep_original` — nothing is applied. Only when correcting cannot help: no defect
-  found (`mean_luminance` 110–150, `color_cast` within ±4, straight), or the photo is
+  found (`mean_luminance` 110–150, `color_cast` within ±4, and you have checked that
+  the walls are vertical), or the photo is
   so degraded (`low_resolution` plus `noise_after_brightening` above ~5) that any
   correction makes it visibly worse.
 
@@ -81,7 +87,8 @@ Measured statistics of this photo:
 Typical values: `mean_luminance` 110–150 is well exposed, < 90 is dark;
 `contrast_std` < 40 is flat; `color_cast` (a, b) beyond ±6 is a visible cast;
 `noise_estimate` > 2 is visible grain; `tilt_deg` is the rotation the pipeline
-found on its own (0 = no straight lines found, look yourself).
+found on its own (0 = no usable straight lines found, not "straight": judge the
+geometry from the picture).
 
 Return only a JSON object with exactly these keys:
 `defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,

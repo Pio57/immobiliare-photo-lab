@@ -64,3 +64,15 @@ def test_input_warnings_flag_small_and_compressed_images(room):
     assert any(w.startswith("low_resolution") for w in pipeline.input_warnings(small, 30_000))
     assert any(w.startswith("heavy_compression") for w in pipeline.input_warnings(small, 30_000))
     assert pipeline.input_warnings(cv2.resize(room, (1600, 1200)), 600_000) == []
+
+
+def test_roll_beyond_the_limit_is_reported_not_half_corrected(room):
+    """A phone shot rolled by 20 deg: the detector reports the roll as measured, the
+    rules do not rotate (no crop can pay for it) and the defect is still named."""
+    rolled = _rotate(room, 20.0)
+    est = pipeline.estimate_tilt(rolled)
+    assert est < -12, est
+    stats = pipeline.analyze(rolled)
+    params = pipeline.auto_params(rolled, stats)
+    assert params.rotate_deg == 0.0
+    assert "tilt" in pipeline.heuristic_defects(stats, params)
