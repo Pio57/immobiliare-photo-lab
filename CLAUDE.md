@@ -1,0 +1,79 @@
+# immobiliare-photo-lab
+
+Case study "Product Builder, Agentic AI Products" @ Immobiliare.it. La foto di copertina di un
+annuncio, corretta con un click senza alterare l'immobile, e un modo per confrontare tre
+famiglie di correzione (regole, modello vision con verifica, generativo). Il lavoro viene
+giudicato su **come si misura**, non su quanto è bella la foto dopo. README = avvio;
+`docs/report/nota.md` = nota completa (sorgente del PDF).
+
+## Vincoli non negoziabili
+- Editorial policy: consentito esposizione, white balance, denoise, raddrizzamento, nitidezza,
+  super-risoluzione etichettata sotto 1000 px. Vietato: sostituzione cielo, rimozione/aggiunta
+  oggetti, ampliamento stanze, qualsiasi intervento su crepe/muffa.
+- Controllo di fedeltà deterministico e **bloccante**, per modulo: non è l'AI a valutare se stessa.
+- Cecità: nella Prova nomi e dettagli compaiono solo dopo la scelta; nello Studio mai (nemmeno il
+  gate). Il gate vive nella regola di decisione, non nel giudizio del tester.
+- Le chiavi non entrano mai nel repo né nel browser (le chiamate ai modelli partono da n8n).
+
+## Architettura
+```
+frontend/     Vite + React 19 + TS + Tailwind 4. Prova (prodotto, resta montata), Studio (test
+              cieco a coppie), Esperimento (tabellone). Fallback su public/snapshot/ se il
+              backend non risponde.
+cv-service/   FastAPI + OpenCV. pipeline.py (WB → livelli+gamma → CLAHE → denoise → rotazione →
+              sharpen), metrics.py (gate), api/routes.py (/prepare /apply /gate_remote),
+              api/dataset.py (/dataset /runs /processed), api/experiment.py (/choices /summary
+              /runs/{id}/cards /study).
+n8n/          build_workflows.py genera: workflow-correct (Correggi, sub-workflow, 6 corsie con
+              gate per modulo e retry), workflow-product (webhook, risponde subito, D1/D2/D3 →
+              Correggi → record), workflow-choice (4 webhook), workflow-batch (dataset, giudice
+              AI opzionale). I JSON non si editano a mano.
+prompts/      diagnosis.md (System, User, Review), judge.md.
+dataset/raw/  24 foto vere + labels.csv (vocabolario: underexposed backlit color_cast noise tilt
+              compressed low_resolution; ok). processed/ ignorata da git.
+experiments/  runs/<id>.json (versionati), choices.csv, study-set.txt, gate-calibration.txt,
+              scripts/calibrate_gate.py, scripts/export_snapshot.py.
+docs/         contracts.md, gate-calibration.md, report/nota.md.
+```
+
+### Decisioni di design (perché)
+- **Una sola implementazione delle correzioni** (Correggi) per prodotto e batch: quello che si
+  confronta è chi diagnostica, non come si corregge.
+- **Guardie deterministiche sul piano del modello** (tilt misurato vince; verso della gamma;
+  CLAHE spento e nitidezza ≤0,2 su input compresso), registrate in `plan_fixes` e contate.
+- **Il modello parla in stop** (`exposure`), il Piano converte in gamma: i modelli invertono
+  gamma, nessuno inverte "più chiara".
+- **Asincrono**: n8n Cloud chiude i webhook a ~100 s; il prodotto risponde subito con
+  `image_id`, il sito interroga `photo-lab-result`.
+- **Tilt**: verticali; orizzontali solo come fallback con consenso stretto; linee da un lato
+  solo → solo tilt ≤3° (prospettiva ≠ rotazione; il gate non vede un verso sbagliato).
+- **Gate calibrato sui dati** (`docs/gate-calibration.md`): 50/50 lecite passano, 7/100 vietate
+  passano (crepe sottili). Non reintrodurre SSIM/Canny senza rifare il banco.
+- **Studio a coppie** (originale sopra, ←/→/↓), un giudizio per riga in `choices.csv`
+  (`chosen` = variante | `tie`; `""` = originale dalla Prova). Wilson 95% nel tabellone.
+
+## Comandi (Windows / PowerShell)
+```powershell
+cd cv-service; py -3.12 -m venv .venv; .venv\Scripts\activate
+pip install -r requirements.txt; pytest; uvicorn app.main:app --port 8000   # NIENTE --reload
+cd frontend; npm install; npm run dev
+ngrok http 8000            # via %LOCALAPPDATA%\Microsoft\WinGet\Packages\Ngrok.Ngrok_*\ngrok.exe
+cv-service\.venv\Scripts\python.exe n8n\build_workflows.py      # dopo ogni cambio di .env/prompt
+cv-service\.venv\Scripts\python.exe experiments\scripts\export_snapshot.py   # dopo ogni batch/studio
+```
+Ogni riavvio di ngrok cambia l'URL: `.env` → rigenera → re-importa tutti e quattro i workflow.
+Re-import: aprire il workflow, Ctrl+A, Canc, Import from file, ricollegare le credenziali, Publish.
+
+## Convenzioni
+- Codice e commenti in inglese; README, docs e testi del sito in italiano, in prosa (niente
+  elenchi telegrafici nei documenti consegnati).
+- Python 3.12 (`py -3.12`); il `python` di default è 3.8 e non va usato.
+- Commit solo su richiesta esplicita dell'utente.
+
+## Stato attuale (aggiornare ogni sera)
+- 2026-09-13: progetto ripensato e completato: dataset di 24 foto vere etichettate, batch senza
+  giudice eseguito (record in experiments/runs), studio cieco a coppie fatto da un valutatore
+  (68 giudizi), tabellone e regola di decisione funzionanti, snapshot statico per il sito.
+  Storia git riscritta da zero (il vecchio progetto A/B/C non esiste più). Da fare: PDF da
+  docs/report/nota.md con screenshot dei canvas (n8n/screenshots/) e del sito; deploy del
+  frontend su Vercel; eventuale VPS per backend sempre acceso. Trial n8n scade ~17/09.
