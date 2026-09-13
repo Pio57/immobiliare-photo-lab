@@ -111,7 +111,7 @@ reimportarli. Il sito, anche senza backend, mostra Studio ed Esperimento dalla c
 
 - **Prova**: si carica una foto; dopo circa un minuto arrivano le tre versioni affiancate, ognuna
   con la maniglia prima/dopo e la scheda del metodo: come decide, difetti trovati, moduli eseguiti
-  con i valori, costo e tempo. Qui non si sceglie: la preferenza si misura nello Studio.
+  con i valori, tempo di elaborazione. Qui non si sceglie: la preferenza si misura nello Studio.
 - **Studio**: test cieco sulle foto del dataset. Per ogni foto il valutatore risponde a tre
   domande senza sapere quale workflow ha prodotto cosa: realismo (originale accanto a una
   versione, "vedi elementi finti o diversi?"), qualità (la sola versione, voto da 1 a 5) e foto

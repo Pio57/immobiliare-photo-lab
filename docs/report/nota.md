@@ -61,7 +61,7 @@ Il prototipo implementa già la prima fase: la vista Studio pone le tre domande 
 
 ## Prototipo, strumenti e limiti
 
-**Come testare il prototipo.** Il prototipo funzionante è raggiungibile dal link in testata. Due modalità per provarlo: nella vista *Prova* si carica una foto scattata da sé (magari buia o un po' storta) e si vedono affiancati i tre flussi D1, D2 e D3, ciascuno con la sua scheda: cosa ha visto, quali moduli ha eseguito, costo e tempo; nella vista *Studio* si scorrono le 24 foto precaricate rispondendo alle tre domande del test cieco, senza sapere quale workflow ha generato cosa.
+**Come testare il prototipo.** Il prototipo funzionante è raggiungibile dal link in testata. Due modalità per provarlo: nella vista *Prova* si carica una foto scattata da sé (magari buia o un po' storta) e si vedono affiancati i tre flussi D1, D2 e D3, ciascuno con la sua scheda: cosa ha visto, quali moduli ha eseguito, tempo di elaborazione; nella vista *Studio* si scorrono le 24 foto precaricate rispondendo alle tre domande del test cieco, senza sapere quale workflow ha generato cosa.
 
 **Architettura e strumenti.** Il sito (React, su Vercel) comunica con quattro workflow n8n self-hosted. Le correzioni sulle immagini, il controllo di fedeltà e i dati sono gestiti da un servizio Python con OpenCV. I modelli impiegati sono Claude Haiku per la diagnosi e la verifica, SDXL con ControlNet e Real-ESRGAN per la generazione, richiamati tramite le API di Replicate. L'intero sviluppo è stato supportato da Claude Code.
 

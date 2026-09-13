@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { Dropzone } from '../components/Dropzone'
 import { Lightbox } from '../components/Lightbox'
-import { Button, Card, SectionTitle, secs, usd } from '../components/ui'
+import { Button, Card, SectionTitle, secs } from '../components/ui'
 import { VersionGrid, label } from '../components/VersionCards'
 import { isLiveConfigured, pendingUpload, runProduct, waitForResult } from '../lib/api'
 import { VARIANT_LABEL, type ProductResponse, type VersionCard } from '../types'
@@ -126,7 +126,7 @@ export function ProvaView() {
         <SectionTitle
           eyebrow="Stessa foto, tre metodi"
           title="Cosa ha fatto ogni metodo"
-          hint="Trascina la maniglia su ogni immagine: a sinistra l’originale, a destra la versione. Sotto, la scheda: come decide il metodo, cosa ha visto, quali moduli ha eseguito e con quali valori, costo e tempo."
+          hint="Trascina la maniglia su ogni immagine: a sinistra l’originale, a destra la versione. Sotto, la scheda: come decide il metodo, cosa ha visto, quali moduli ha eseguito e con quali valori, tempo di elaborazione."
           right={
             <Button variant="ghost" onClick={() => setState({ kind: 'idle' })}>
               Un&apos;altra foto
@@ -134,9 +134,7 @@ export function ProvaView() {
           }
         />
         <VersionGrid cards={r.cards} original={state.preview} onZoom={setZoom} />
-        <p className="mt-3 text-xs text-muted tabular-nums">
-          Risposta in {secs(r.latency_ms)} · costo totale {usd(r.cards.reduce((a, c) => a + c.cost_usd, 0))} per le tre versioni.
-        </p>
+        <p className="mt-3 text-xs text-muted tabular-nums">Risposta completa in {secs(r.latency_ms)}.</p>
       </section>
     </div>
   )

@@ -1,5 +1,5 @@
 import { CompareSlider } from './CompareSlider'
-import { Button, Card, secs, usd } from './ui'
+import { Button, Card, secs } from './ui'
 import { DEFECT_LABEL, VARIANT_LABEL, VARIANT_SUBTITLE, type ModuleName, type Step, type VersionCard } from '../types'
 
 const MODULES: ModuleName[] = ['Risoluzione', 'Colore', 'Luce', 'Pulizia', 'Raddrizza', 'Nitidezza']
@@ -151,9 +151,7 @@ export function VersionGrid({ cards, original, onZoom }: { cards: VersionCard[];
                   {card.measured_changes ? 'immagine rigenerata' : applied.length ? `${applied.length} moduli` : 'nessun modulo'}
                   {card.fidelity && ` · fedeltà ${card.fidelity.score.toFixed(3)}`}
                 </span>
-                <span>
-                  {usd(card.cost_usd)} · {secs(card.latency_ms)}
-                </span>
+                <span>{secs(card.latency_ms)}</span>
                 {d.plan_fixes?.length > 0 && (
                   <span className="w-full truncate" title={d.plan_fixes.join('; ')}>
                     guardie del sistema: {d.plan_fixes.length}
