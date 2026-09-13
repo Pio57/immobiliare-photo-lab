@@ -58,8 +58,7 @@ def get_image(image_id: str) -> dict:
 
 
 def _serve(path: Path, max_side: int | None) -> Response:
-    """JPEG bytes, optionally downscaled. The judge sees images at thumbnail-like
-    size (the product's real surface is the SERP thumbnail) and costs half the tokens."""
+    """JPEG bytes, optionally downscaled (the generative model takes a 1024 px copy)."""
     if not max_side:
         return FileResponse(path, media_type="image/jpeg")
     img = cv2.imread(str(path))

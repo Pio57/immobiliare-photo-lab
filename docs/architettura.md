@@ -79,7 +79,7 @@ la versione viene marcata `error` con `source: heuristic`: l'agente riceve comun
 ## 3. I workflow n8n, nodo per nodo
 
 I quattro workflow sono generati da `n8n/build_workflows.py`: i prompt vengono da
-`prompts/diagnosis.md` (sezioni System, User, Review) e `prompts/judge.md`, gli indirizzi da
+`prompts/diagnosis.md` (sezioni System, User, Review), gli indirizzi da
 `.env`. Le sticky note sul canvas sono generate anch'esse e descrivono ogni corsia. Le
 convenzioni: i nodi Code girano "una volta per item"; i nodi HTTP verso cv-service hanno timeout
 180 s e fino a 8 tentativi a 15 s di distanza; i nodi verso Anthropic nel prodotto hanno
@@ -135,7 +135,7 @@ della curva tonale, pulizia dopo, rotazione, nitidezza per ultima). Chiusura:
 Una foto solo storta passa quindi da un solo nodo *applica* (Raddrizza) più il finale; una foto
 senza difetti non chiama nulla e torna `changed: false`.
 
-### 3.2 Prodotto (`workflow-product.json`, 39 nodi, webhook `photo-lab-product`)
+### 3.2 Prodotto (`workflow-product.json`, 41 nodi, webhook `photo-lab-product`)
 
 ![Il canvas di Prodotto: ingresso, risposta immediata, tre corsie in parallelo, merge e record](../n8n/screenshots/product.png)
 
@@ -178,10 +178,11 @@ costruisce il `VariantResult`).
 | D3: richiesta | Code | corpo per Replicate: versione del modello, prompt e negative prompt, `img2img`, `strength 0.35`, `condition_scale 1.1`, `guidance_scale 5`, 30 passi, seed 42 |
 | D3: Replicate | HTTP | `POST api.replicate.com/v1/predictions` con `Prefer: wait=60`, credenziale header `Authorization: Bearer` |
 | D3: succeeded? | IF | `status === 'succeeded'` |
-| D3: in corso? | IF | `starting` o `processing` e meno di 8 tentativi |
+| D3: in corso? | IF | `starting` o `processing` e meno di 12 tentativi |
 | D3: attendi | Wait | 15 secondi |
 | D3: stato | HTTP | `GET urls.get` della prediction |
-| D3: conta | Code | incrementa `_polls` e torna a *succeeded?* (il ciclo di polling del cold start) |
+| D3: conta | Code | incrementa `_polls` e torna a *succeeded?* (il ciclo di polling del cold start, fino a 3 minuti) |
+| D3: nsfw? / D3: nuovo seed | IF / Code | il filtro di sicurezza del modello scatta a vuoto su letti e vestiti ("NSFW content detected") e un 429 arriva con due upload insieme: fino a due nuovi tentativi con un altro seed, poi errore |
 | D3: gate | HTTP | `POST cv-service/gate_remote`: scarica l'output, lo confronta con l'originale, lo salva come `<id>_D3.jpg`, restituisce fedeltà e `measured_changes` |
 | Record D3 | Code | `VariantResult` senza diagnosi: costo dal `predict_time` a tariffa GPU, sei righe di `steps` ricavate dalle misure a posteriori (una riga è `applied` quando la variazione misurata supera quella di una semplice ricodifica), `status` `accepted`, `rejected_fidelity`, `timeout` o `error` |
 
@@ -207,9 +208,9 @@ con CORS aperto:
 | `photo-lab-result` | GET | `GET /runs/{image_id}/cards` | le tre versioni di un'esecuzione, per la Prova (polling) e per lo Studio |
 | `photo-lab-study` | GET | `GET /study` | gli id dello studio, quali sono pronti, i valutatori finora |
 
-### 3.4 Batch (`workflow-batch.json`, 45 nodi, avvio manuale)
+### 3.4 Batch (`workflow-batch.json`, 43 nodi, avvio manuale)
 
-![Il canvas di Batch: ciclo sulle foto, le stesse corsie in sequenza, giudice opzionale](../n8n/screenshots/batch.png)
+![Il canvas di Batch: ciclo sulle foto, le stesse corsie in sequenza](../n8n/screenshots/batch.png)
 
 Le stesse corsie del Prodotto, in sequenza anziché in parallelo, dentro un ciclo sulle foto del
 dataset:
@@ -217,22 +218,18 @@ dataset:
 | nodo | tipo | cosa fa |
 |---|---|---|
 | Manual Trigger | Trigger | avvio a mano dal canvas |
-| Config | Set | `cv_url`, `limit`, `skip_done`, `ids` (vuoto = tutto il dataset, altrimenti gli id dello studio), `judge` (giudice AI on/off) |
+| Config | Set | `cv_url`, `limit`, `skip_done`, `ids` (vuoto = tutto il dataset, altrimenti gli id dello studio) |
 | List images | HTTP | `GET cv-service/dataset` |
 | Split images | Code | un item per foto, filtrati da `Config.ids` |
 | Loop | Split in Batches | una foto alla volta; all'uscita `Done` |
 | Current image | Set | l'id corrente |
 | Prepara | HTTP | come nel Prodotto, ma dalla foto del dataset |
 | D1 → Record D1 → D2 … → Record D2 → D3 … → Record D3 | | le corsie del Prodotto, concatenate: ogni Record aggiunge la propria versione a quelle precedenti |
-| Judge: pairs | Code | prepara le tre coppie (D1-D2, D2-D3, D1-D3) con lati casuali; output identici → pareggio senza chiamata |
-| Judge: route | IF | `Config.judge` spento → salta |
-| Judge: Sonnet | HTTP | giudice automatico (Claude Sonnet), chiamate serializzate |
-| Judge: keep meta / Judge: tally | Code | conteggio dei voti |
+| Record | Code | il record della foto: le tre versioni in ordine casuale (l'ordine cieco dello Studio), `source: batch` |
 | Save run | HTTP | `POST cv-service/runs/<image_id>` e ritorno al Loop |
 
 Nel batch le immagini raggiungono i modelli per URL del dataset (`GET cv-service/dataset/<id>/file`)
-invece che inline. Il giudice automatico è stato tenuto come opzione ma è spento: i giudizi che
-contano sono quelli dello Studio.
+invece che inline. Nessun giudice automatico: i giudizi sono quelli delle persone, nello Studio.
 
 ## 4. cv-service
 

@@ -11,15 +11,15 @@ cv-service\.venv\Scripts\python.exe n8n\build_workflows.py
 |---|---|---|
 | `workflow-correct.json` | **Correggi**: il router. Sei corsie in sequenza (Risoluzione, Colore, Luce, Pulizia, Raddrizza, Nitidezza); ognuna gira solo se il piano la chiede, applica il suo parametro sopra quelli già accettati ripartendo dall'originale, passa dal gate; bocciata → un tentativo conservativo → saltata. `Finale` applica gli accettati. | sub-workflow |
 | `workflow-product.json` | **Prodotto**: upload → `/prepare` → *risponde subito* con l'`image_id` → tre famiglie (D1 regole, D2 Haiku + verifica, D3 generativo) → record con ordine cieco → `/runs`. | webhook `photo-lab-product` |
-| `workflow-choice.json` | **Scelte**: registra la scelta cieca (`photo-lab-choice`), serve il tabellone (`photo-lab-summary`), il risultato di un'esecuzione (`photo-lab-result`) e la lista dello studio (`photo-lab-study`). | 4 webhook |
-| `workflow-batch.json` | **Esperimento su dataset**: le stesse corsie, una foto etichettata alla volta (`Config.ids`), giudice AI opzionale (`Config.judge`). È lo studio cieco ("Studio" nel sito) e il modo in cui si scala. | manuale |
+| `workflow-choice.json` | **Scelte**: registra una risposta dello Studio (`photo-lab-choice`), serve il tabellone (`photo-lab-summary`), il risultato di un'esecuzione (`photo-lab-result`) e la lista dello studio (`photo-lab-study`). | 4 webhook |
+| `workflow-batch.json` | **Batch sul dataset**: le stesse corsie, una foto alla volta (`Config.ids` = lo studio). Prepara le versioni che lo Studio mostra. | manuale |
 
 ## Import
 
 1. Importa `workflow-correct.json`, salva, copia l'id dall'URL in `.env` come
    `N8N_CORRECT_WORKFLOW_ID`, rigenera, **pubblica**.
 2. Importa gli altri tre. Credenziali da selezionare a mano dopo l'import:
-   - Anthropic (`anthropicApi`): `D2: modello`, `D2: verifica modello`, `Judge: Sonnet`.
+   - Anthropic (`anthropicApi`): `D2: modello`, `D2: verifica modello`.
    - Replicate (Header Auth, `Authorization: Bearer <token>`): `D3: Replicate`, `D3: stato`,
      e in Correggi `Risoluzione: Real-ESRGAN`.
 3. Pubblica prodotto e scelte. URL del webhook prodotto in `.env` come `VITE_N8N_WEBHOOK_URL`

@@ -2,15 +2,15 @@
 nodes come from prompts/*.md (single source of truth) and the canvases can be
 rebuilt after a trial expiry with one command.
 
-Three workflows:
+Four workflows (workflow-choice.json holds the service webhooks):
   workflow-correct.json   "Correggi" — the correction router. Four modules in sequence
                           (Colore, Luce, Pulizia, Raddrizza); each runs only if the
                           plan asks for it, is gated on its own against the original,
                           gets one conservative retry, and is skipped if it still fails.
                           Called as a sub-workflow by the other two: one implementation.
   workflow-product.json   the product (webhook): prepare -> diagnose -> plan -> Correggi -> respond.
-  workflow-batch.json     the experiment: same photos, three diagnosers (D1 heuristic,
-                          D2 Haiku vision, D3 Sonnet vision) -> Correggi each -> judge -> record.
+  workflow-batch.json     the dataset run: the same three lanes on every photo of the
+                          study set, one at a time -> record (what the Studio shows).
 
 Usage (from repo root):
   cv-service\\.venv\\Scripts\\python.exe n8n\\build_workflows.py
@@ -46,10 +46,7 @@ GEN_NEGATIVE = "cartoon, painting, render, blurry, extra furniture, different ro
 GEN_PRICE_PER_SEC = 0.000725  # Replicate A40 (large), USD per second of predict_time
 PRODUCT_MODEL = "claude-haiku-4-5"
 STUDY_IDS = (ROOT / "experiments" / "study-set.txt").read_text(encoding="utf-8").split() if (ROOT / "experiments" / "study-set.txt").exists() else []
-JUDGE_MODEL = "claude-sonnet-5"
-JUDGE_REPS = 3
-JUDGE_MAX_SIDE = 640  # SERP thumbnail scale; also 4x less traffic through the free tunnel
-PRICE = {"claude-haiku-4-5": (1.0, 5.0), "claude-sonnet-5": (2.0, 10.0)}  # USD per MTok in/out
+PRICE = {"claude-haiku-4-5": (1.0, 5.0)}  # USD per MTok in/out
 # Super-resolution, only for inputs below 1000 px (screenshots, forwarded photos).
 # Measured in experiments/flow-d.json: sharper than bicubic but further from the truth,
 # thin cracks altered +-30%, invisible to the gate. So: opt-in by input size, labelled.
@@ -112,8 +109,7 @@ def http_cv(name: str, url: str, body_expr: str | None, x: int, y: int, method: 
 
 def http_anthropic(name: str, x: int, y: int, batch_interval: int = 0, keep_alive: bool = False) -> dict:
     """Body is prepared by the preceding Code node in $json.body.
-    `batch_interval` serialises the calls: the judge fires 9 requests at once and
-    each makes Anthropic re-fetch 3 images through the free tunnel, which kills it.
+    `batch_interval` serialises the calls when several fire at once.
     `keep_alive` lets the product fall back to the heuristics instead of failing."""
     extra = dict(RETRY)
     if keep_alive:
@@ -654,10 +650,14 @@ return {{ json: {{ ...$input.item.json, _polls: n + 1 }} }};
 """, x + 440, y + 320),
         # The safety checker of the hosted model misfires on bedrooms (beds, clothes on the
         # bed): a failed prediction that says NSFW is retried up to twice with another seed.
-        if_bool(f"{v}: nsfw?", f"String($json.error || '').includes('NSFW') && (($('{v}: richiesta').first().json._attempt || 0) < 2)", x + 660, y + 180),
+        # A 429 (two uploads at once) takes the same road, after a pause.
+        if_bool(f"{v}: nsfw?", f"/NSFW|429|spacing/.test(String(($json.error && ($json.error.message || $json.error)) || '')) && (($('{v}: richiesta').first().json._attempt || 0) < 2)", x + 660, y + 180),
         code(f"{v}: nuovo seed", f"""
-// Another seed for the same request; the counter travels through this node.
+// Another seed for the same request; the counter travels through this node. A rate
+// limit gets a pause first.
 const req = $('{v}: richiesta').first().json;
+const err = $input.item.json.error;
+if (/429|spacing/.test(String((err && (err.message || err)) || ''))) await new Promise(r => setTimeout(r, 8000));
 return {{ json: {{ image_id: req.image_id, _attempt: (req._attempt || 0) + 1 }} }};
 """, x + 880, y + 180),
         http_cv(f"{v}: gate", f"{cv_url}/gate_remote",
@@ -794,79 +794,19 @@ def build_choice() -> dict:
 
 
 def build_batch() -> dict:
-    """The scaled version of the same experiment: labelled photos instead of uploads,
-    an AI judge instead of the agent's choice. Same lanes, same Correggi."""
+    """The same three lanes on the dataset photos, one at a time, to prepare the
+    versions the Studio shows. Same lanes, same Correggi as the product."""
     cv_url = read_env("CV_SERVICE_PUBLIC_URL", "https://CHANGE-ME.ngrok-free.app")
     correct_id = read_env("N8N_CORRECT_WORKFLOW_ID", "PASTE-CORREGGI-WORKFLOW-ID")
-    j = prompt_sections("judge.md")
-    jp_in, jp_out = PRICE[JUDGE_MODEL]
-
-    judge_pairs_js = f"""
-// Pairwise judge, blind and randomised: one item per (pair, repetition), left/right shuffled.
-// Only the pairs that answer a question are judged (rules vs model, small vs large
-// model, one look vs two), and only when both outputs exist and differ.
-// Prompt text comes from prompts/judge.md (generated, do not edit here).
-const SYSTEM = {js_string(j['system'])};
-const cv = $('Config').first().json.cv_url;
-const img = (url) => ({{ type: 'image', source: {{ type: 'url', url }} }});
-const QUESTIONS = [['D1', 'D2'], ['D2', 'D3'], ['D1', 'D3']];
-const JUDGE = $('Config').first().json.judge === true;
-const out = [];
-for (const item of $input.all()) {{
-  const rec = item.json;
-  if (!JUDGE) {{ out.push({{ json: {{ image_id: rec.image_id, record: rec, skip: true }} }}); continue; }}
-  const byId = Object.fromEntries(rec.variants.map(v => [v.variant, v]));
-  const same = (a, b) => JSON.stringify(byId[a].params) === JSON.stringify(byId[b].params) && byId[a].ai_reconstructed === byId[b].ai_reconstructed;
-  const pairs = QUESTIONS.filter(([a, b]) => byId[a] && byId[b] && byId[a].status === 'accepted' && byId[b].status === 'accepted' && !same(a, b));
-  const identical = QUESTIONS.filter(([a, b]) => byId[a] && byId[b] && byId[a].status === 'accepted' && byId[b].status === 'accepted' && same(a, b));
-  rec.judge_identical = identical.map(([a, b]) => ({{ image_id: rec.image_id, left: a, right: b, votes: [], winner: 'indistinguishable', cost_usd: 0, reasons: ['identical output'] }}));
-  if (!pairs.length) {{ out.push({{ json: {{ image_id: rec.image_id, record: rec, skip: true }} }}); continue; }}
-  for (const [a, b] of pairs) for (let rep = 1; rep <= {JUDGE_REPS}; rep++) {{
-    const [left, right] = Math.random() < 0.5 ? [a, b] : [b, a];
-    out.push({{ json: {{ image_id: rec.image_id, record: rec, pair: [a, b], left, right, rep, skip: false,
-      body: {{ model: {js_string(JUDGE_MODEL)}, max_tokens: 200, thinking: {{ type: 'disabled' }}, system: SYSTEM,
-        messages: [{{ role: 'user', content: [
-          {{ type: 'text', text: 'Original:' }}, img(`${{cv}}/dataset/${{rec.image_id}}/file?max_side={JUDGE_MAX_SIDE}`),
-          {{ type: 'text', text: 'Candidate LEFT:' }}, img(`${{cv}}/processed/${{rec.image_id}}_${{left}}.jpg?max_side={JUDGE_MAX_SIDE}`),
-          {{ type: 'text', text: 'Candidate RIGHT:' }}, img(`${{cv}}/processed/${{rec.image_id}}_${{right}}.jpg?max_side={JUDGE_MAX_SIDE}`),
-          {{ type: 'text', text: 'Answer with a JSON object: {{"winner": "left" | "right", "reason": "<one sentence>"}}. You must pick one; there is no tie option.' }}
-        ] }}] }} }} }});
-  }}
-}}
-return out;
-"""
-    judge_tally_js = f"""
-// Self-consistency: a pair is decided only by unanimous votes, otherwise 'indistinguishable'.
-const groups = {{}};
-for (const item of $input.all()) {{
-  const x = item.json;
-  const g = groups[x.image_id] ??= {{ record: x.record, pairs: {{}} }};
-  if (x.skip) continue;
-  const key = x.pair.join('');
-  const pr = g.pairs[key] ??= {{ left: x.pair[0], right: x.pair[1], votes: [], cost_usd: 0, reasons: [] }};
-  const text = (x.response.content || []).map(c => c.text || '').join('');
-  const m = text.match(/"winner"\\s*:\\s*"(left|right)"/);
-  const side = m ? m[1] : 'left';
-  pr.votes.push(side === 'left' ? x.left : x.right);
-  pr.reasons.push((text.match(/"reason"\\s*:\\s*"([^"]*)"/) || [])[1] || '');
-  pr.cost_usd += x.response.usage.input_tokens * {jp_in} / 1e6 + x.response.usage.output_tokens * {jp_out} / 1e6;
-}}
-return Object.entries(groups).map(([image_id, g]) => {{
-  const judge = Object.values(g.pairs).map(pr => ({{ image_id, left: pr.left, right: pr.right, votes: pr.votes,
-    winner: pr.votes.every(v => v === pr.votes[0]) ? pr.votes[0] : 'indistinguishable',
-    cost_usd: Number(pr.cost_usd.toFixed(5)), reasons: pr.reasons }}));
-  const {{ judge_identical, ...record }} = g.record;
-  const order = record.variants.map(v => v.variant).sort(() => Math.random() - 0.5);
-  return {{ json: {{ ...record, source: 'batch', order, judge: [...judge, ...(judge_identical || [])] }} }};
-}});
-"""
-    judge_keep_js = """
-// Carry the pair metadata past the HTTP node (its output is only the API response).
-const meta = $('Judge: pairs').item.json;
-return { json: { ...meta, body: undefined, response: $input.item.json } };
+    finalize_js = """
+// The record of one dataset photo: the three versions in a random order (the blind
+// order the Studio shows them in), then saved like a product run.
+const rec = $input.item.json;
+const order = rec.variants.map(v => v.variant).sort(() => Math.random() - 0.5);
+return { json: { ...rec, source: 'batch', order, judge: [] } };
 """
     nodes = [
-        sticky("Setup e ciclo", "Una foto etichettata per iterazione: ogni record e' salvato prima di passare alla successiva, cosi' un'interruzione non perde il lavoro fatto. Config: ids = lo studio (20 foto scelte a mano), judge = giudice AI acceso/spento. /prepare misura la foto una volta per tutte le famiglie.", -120, -160, 1900, 420, 4),
+        sticky("Setup e ciclo", "Una foto etichettata per iterazione: ogni record e' salvato prima di passare alla successiva, cosi' un'interruzione non perde il lavoro fatto. Config: ids = lo studio (le foto scelte a mano). /prepare misura la foto una volta per tutte le famiglie.", -120, -160, 1900, 420, 4),
         sticky("Le stesse tre corsie del prodotto", "Stessa diagnosi, stesso Correggi, stesso generativo. Qui in sequenza (una foto alla volta) e con le etichette a mano: la diagnosi si misura anche con precision/recall per difetto.", 1800, -160, 3300, 160, 7),
         sticky("GIUDICE - pairwise, cieco", "Al posto dell'agente: Sonnet confronta le tre coppie, 3 volte con lati casuali. Output identici = 'indistinguibile' senza chiamata. Voti non unanimi = 'indistinguibile'.", 1800, 1340, 1900, 360, 7),
         node("Manual Trigger", "n8n-nodes-base.manualTrigger", 1, {}, -40, 40),
@@ -875,9 +815,8 @@ return { json: { ...meta, body: undefined, response: $input.item.json } };
                 {"id": "cv", "name": "cv_url", "value": cv_url, "type": "string"},
                 {"id": "lim", "name": "limit", "value": 60, "type": "number"},
                 {"id": "skip", "name": "skip_done", "value": True, "type": "boolean"},
-                # study set: only these ids (empty = the whole dataset); judge off = human study only
+                # study set: only these ids (empty = the whole dataset)
                 {"id": "ids", "name": "ids", "value": ",".join(STUDY_IDS), "type": "string"},
-                {"id": "judge", "name": "judge", "value": False, "type": "boolean"},
             ]},
             "options": {},
         }, 180, 40),
@@ -935,17 +874,10 @@ return $input.first().json.images.filter(i => !want.length || want.includes(i.im
                                   save_as_expr="$('Prepara').first().json.image_id + '_D3'", chained_to=prev_record)
 
     nodes += [
-        code("Judge: pairs", judge_pairs_js, 1900, 1480, each_item=False),
-        if_bool("Judge: route", "$json.skip", 2120, 1480),
-        http_anthropic("Judge: Sonnet", 2340, 1560, batch_interval=2500),
-        code("Judge: keep meta", judge_keep_js, 2560, 1560),
-        code("Judge: tally", judge_tally_js, 2780, 1480, each_item=False),
-        http_cv("Save run", f"={cv_url}/runs/{{{{ $json.image_id }}}}", "={{ JSON.stringify($json) }}", 3000, 1480),
+        code("Record", finalize_js, 1900, 1480),
+        http_cv("Save run", f"={cv_url}/runs/{{{{ $json.image_id }}}}", "={{ JSON.stringify($json) }}", 2120, 1480),
     ]
-    chain(connections, [prev_record, "Judge: pairs", "Judge: route"])
-    connect(connections, "Judge: route", "Judge: tally", output=0)     # nothing to compare
-    connect(connections, "Judge: route", "Judge: Sonnet", output=1)
-    chain(connections, ["Judge: Sonnet", "Judge: keep meta", "Judge: tally", "Save run", "Loop"])
+    chain(connections, [prev_record, "Record", "Save run", "Loop"])
     return {"name": "photo-lab esperimento su dataset (batch)", "nodes": nodes, "connections": connections, "settings": {"executionOrder": "v1"}}
 
 

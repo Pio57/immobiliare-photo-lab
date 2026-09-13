@@ -78,8 +78,8 @@ lista delle foto dello studio (`photo-lab-study`). Ognuno passa la mano a cv-ser
 
 Ripete il lavoro di Prodotto su un intero insieme di foto (le 24 del dataset, o gli id indicati
 in `Config`), una alla volta, con le stesse corsie e lo stesso Correggi. È il modo in cui sono
-state preparate le tre versioni di ogni foto dello Studio. Un giudice automatico (Claude
-Sonnet) è previsto come opzione ma spento: i giudizi che contano sono quelli delle persone.
+state preparate le tre versioni di ogni foto dello Studio. Nessun giudice automatico: i
+giudizi sono quelli delle persone, nello Studio.
 
 ## Il sito
 
@@ -147,7 +147,7 @@ cv-service/   servizio Python: pipeline di correzione, controllo di fedeltà, da
               giudizi, tabellone (api/experiment.py)
 n8n/          i quattro workflow (JSON generati), lo script che li genera, gli screenshot
 frontend/     sito React: Prova, Studio, Esperimento; copia statica in public/snapshot/
-prompts/      prompt del modello vision (diagnosi e verifica) e del giudice automatico
+prompts/      prompt del modello vision (diagnosi e verifica)
 dataset/      le 24 foto con le etichette manuali dei difetti (labels.csv)
 experiments/  record delle esecuzioni (runs/), lista dello studio, calibrazione del controllo
               di fedeltà, script di esportazione della copia statica

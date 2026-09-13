@@ -683,7 +683,7 @@
           "conditions": [
             {
               "id": "c",
-              "leftValue": "={{ String($json.error || '').includes('NSFW') && (($('D3: richiesta').first().json._attempt || 0) < 2) }}",
+              "leftValue": "={{ /NSFW|429|spacing/.test(String(($json.error && ($json.error.message || $json.error)) || '')) && (($('D3: richiesta').first().json._attempt || 0) < 2) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -706,7 +706,7 @@
         940
       ],
       "parameters": {
-        "jsCode": "\n// Another seed for the same request; the counter travels through this node.\nconst req = $('D3: richiesta').first().json;\nreturn { json: { image_id: req.image_id, _attempt: (req._attempt || 0) + 1 } };\n",
+        "jsCode": "\n// Another seed for the same request; the counter travels through this node. A rate\n// limit gets a pause first.\nconst req = $('D3: richiesta').first().json;\nconst err = $input.item.json.error;\nif (/429|spacing/.test(String((err && (err.message || err)) || ''))) await new Promise(r => setTimeout(r, 8000));\nreturn { json: { image_id: req.image_id, _attempt: (req._attempt || 0) + 1 } };\n",
         "mode": "runOnceForEachItem"
       }
     },

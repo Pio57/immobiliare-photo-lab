@@ -28,9 +28,9 @@ cv-service/   FastAPI + OpenCV. pipeline.py (WB → livelli+gamma → CLAHE → 
               /runs/{id}/cards /study).
 n8n/          build_workflows.py genera: workflow-correct (Correggi, sub-workflow, 6 corsie con
               gate per modulo e retry), workflow-product (webhook, risponde subito, D1/D2/D3 →
-              Correggi → record), workflow-choice (4 webhook), workflow-batch (dataset, giudice
-              AI opzionale). I JSON non si editano a mano.
-prompts/      diagnosis.md (System, User, Review), judge.md.
+              Correggi → record), workflow-choice (4 webhook), workflow-batch (dataset, stesse
+              corsie, nessun giudice). I JSON non si editano a mano.
+prompts/      diagnosis.md (System, User, Review).
 dataset/raw/  24 foto vere + labels.csv (vocabolario: underexposed backlit color_cast noise tilt
               compressed low_resolution; ok). processed/ ignorata da git.
 experiments/  runs/<id>.json (versionati), judgments.csv, study-set.txt, gate-calibration.txt,

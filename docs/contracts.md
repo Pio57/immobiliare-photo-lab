@@ -61,7 +61,7 @@ saltato. Per il generativo le sei righe sono **misurate dopo** sui pixel
 
 Il record di un'esecuzione: `{ image_id, source: live|batch, order: [...], variants: [...],
 input_warnings, heuristic_defects, latency_ms, judge: [...] }`. `order` fissa l'ordine cieco
-delle schede; `judge` è vuoto nel prodotto (lo riempie solo il batch con giudice acceso).
+delle schede; `judge` è sempre vuoto (campo storico).
 
 ## Giudizi e tabellone
 

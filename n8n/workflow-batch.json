@@ -10,7 +10,7 @@
         -160
       ],
       "parameters": {
-        "content": "## Setup e ciclo\nUna foto etichettata per iterazione: ogni record e' salvato prima di passare alla successiva, cosi' un'interruzione non perde il lavoro fatto. Config: ids = lo studio (20 foto scelte a mano), judge = giudice AI acceso/spento. /prepare misura la foto una volta per tutte le famiglie.",
+        "content": "## Setup e ciclo\nUna foto etichettata per iterazione: ogni record e' salvato prima di passare alla successiva, cosi' un'interruzione non perde il lavoro fatto. Config: ids = lo studio (le foto scelte a mano). /prepare misura la foto una volta per tutte le famiglie.",
         "height": 420,
         "width": 1900,
         "color": 4
@@ -90,12 +90,6 @@
               "name": "ids",
               "value": "img_001,img_003,img_004,img_005,img_006,img_007,img_008,img_009,img_010,img_011,img_012,img_014,img_015,img_016,img_017,img_018,img_019,img_020,img_021,img_022,img_023,img_024,img_025",
               "type": "string"
-            },
-            {
-              "id": "judge",
-              "name": "judge",
-              "value": false,
-              "type": "boolean"
             }
           ]
         },
@@ -725,7 +719,7 @@
           "conditions": [
             {
               "id": "c",
-              "leftValue": "={{ String($json.error || '').includes('NSFW') && (($('D3: richiesta').first().json._attempt || 0) < 2) }}",
+              "leftValue": "={{ /NSFW|429|spacing/.test(String(($json.error && ($json.error.message || $json.error)) || '')) && (($('D3: richiesta').first().json._attempt || 0) < 2) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -748,7 +742,7 @@
         900
       ],
       "parameters": {
-        "jsCode": "\n// Another seed for the same request; the counter travels through this node.\nconst req = $('D3: richiesta').first().json;\nreturn { json: { image_id: req.image_id, _attempt: (req._attempt || 0) + 1 } };\n",
+        "jsCode": "\n// Another seed for the same request; the counter travels through this node. A rate\n// limit gets a pause first.\nconst req = $('D3: richiesta').first().json;\nconst err = $input.item.json.error;\nif (/429|spacing/.test(String((err && (err.message || err)) || ''))) await new Promise(r => setTimeout(r, 8000));\nreturn { json: { image_id: req.image_id, _attempt: (req._attempt || 0) + 1 } };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -788,7 +782,7 @@
       }
     },
     {
-      "name": "Judge: pairs",
+      "name": "Record",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -796,103 +790,8 @@
         1480
       ],
       "parameters": {
-        "jsCode": "\n// Pairwise judge, blind and randomised: one item per (pair, repetition), left/right shuffled.\n// Only the pairs that answer a question are judged (rules vs model, small vs large\n// model, one look vs two), and only when both outputs exist and differ.\n// Prompt text comes from prompts/judge.md (generated, do not edit here).\nconst SYSTEM = \"You compare two versions of the same real-estate cover photo and decide which\\none would get more clicks in a search results list, while remaining a truthful\\nphoto of the same property. You see the original first, then the two candidates.\\n\\nJudge on these criteria, in this order:\\n\\n1. **Exposure** — Can you clearly see the room? Level 3: every surface readable,\\n   no blown-out window dominating. Level 2: readable with some crushed shadows or\\n   a bright window. Level 1: dark corners or large burnt areas hide the room.\\n2. **Colour** — Do walls that are white look white? Level 3: neutral. Level 2:\\n   slight warm/cool tint. Level 1: obvious orange or blue cast.\\n3. **Geometry** — Are vertical lines (door frames, walls) vertical? Level 3: yes.\\n   Level 2: slight lean. Level 1: visibly falling verticals.\\n4. **Naturalness** — Does it still look like a phone photo of a real room?\\n   Level 3: yes. Level 2: slightly over-processed (halos, plastic surfaces,\\n   crunchy contrast). Level 1: looks like a render or a painting.\\n\\nA candidate that is better on an earlier criterion wins unless it is at Level 1\\non a later one. Do not reward saturation or drama; reward clarity.\";\nconst cv = $('Config').first().json.cv_url;\nconst img = (url) => ({ type: 'image', source: { type: 'url', url } });\nconst QUESTIONS = [['D1', 'D2'], ['D2', 'D3'], ['D1', 'D3']];\nconst JUDGE = $('Config').first().json.judge === true;\nconst out = [];\nfor (const item of $input.all()) {\n  const rec = item.json;\n  if (!JUDGE) { out.push({ json: { image_id: rec.image_id, record: rec, skip: true } }); continue; }\n  const byId = Object.fromEntries(rec.variants.map(v => [v.variant, v]));\n  const same = (a, b) => JSON.stringify(byId[a].params) === JSON.stringify(byId[b].params) && byId[a].ai_reconstructed === byId[b].ai_reconstructed;\n  const pairs = QUESTIONS.filter(([a, b]) => byId[a] && byId[b] && byId[a].status === 'accepted' && byId[b].status === 'accepted' && !same(a, b));\n  const identical = QUESTIONS.filter(([a, b]) => byId[a] && byId[b] && byId[a].status === 'accepted' && byId[b].status === 'accepted' && same(a, b));\n  rec.judge_identical = identical.map(([a, b]) => ({ image_id: rec.image_id, left: a, right: b, votes: [], winner: 'indistinguishable', cost_usd: 0, reasons: ['identical output'] }));\n  if (!pairs.length) { out.push({ json: { image_id: rec.image_id, record: rec, skip: true } }); continue; }\n  for (const [a, b] of pairs) for (let rep = 1; rep <= 3; rep++) {\n    const [left, right] = Math.random() < 0.5 ? [a, b] : [b, a];\n    out.push({ json: { image_id: rec.image_id, record: rec, pair: [a, b], left, right, rep, skip: false,\n      body: { model: \"claude-sonnet-5\", max_tokens: 200, thinking: { type: 'disabled' }, system: SYSTEM,\n        messages: [{ role: 'user', content: [\n          { type: 'text', text: 'Original:' }, img(`${cv}/dataset/${rec.image_id}/file?max_side=640`),\n          { type: 'text', text: 'Candidate LEFT:' }, img(`${cv}/processed/${rec.image_id}_${left}.jpg?max_side=640`),\n          { type: 'text', text: 'Candidate RIGHT:' }, img(`${cv}/processed/${rec.image_id}_${right}.jpg?max_side=640`),\n          { type: 'text', text: 'Answer with a JSON object: {\"winner\": \"left\" | \"right\", \"reason\": \"<one sentence>\"}. You must pick one; there is no tie option.' }\n        ] }] } } });\n  }\n}\nreturn out;\n"
-      }
-    },
-    {
-      "name": "Judge: route",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        2120,
-        1480
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "id": "c",
-              "leftValue": "={{ $json.skip }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "name": "Judge: Sonnet",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2340,
-        1560
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.body) }}",
-        "options": {
-          "timeout": 120000,
-          "batching": {
-            "batch": {
-              "batchSize": 1,
-              "batchInterval": 2500
-            }
-          }
-        }
-      },
-      "retryOnFail": true,
-      "maxTries": 8,
-      "waitBetweenTries": 15000
-    },
-    {
-      "name": "Judge: keep meta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2560,
-        1560
-      ],
-      "parameters": {
-        "jsCode": "\n// Carry the pair metadata past the HTTP node (its output is only the API response).\nconst meta = $('Judge: pairs').item.json;\nreturn { json: { ...meta, body: undefined, response: $input.item.json } };\n",
+        "jsCode": "\n// The record of one dataset photo: the three versions in a random order (the blind\n// order the Studio shows them in), then saved like a product run.\nconst rec = $input.item.json;\nconst order = rec.variants.map(v => v.variant).sort(() => Math.random() - 0.5);\nreturn { json: { ...rec, source: 'batch', order, judge: [] } };\n",
         "mode": "runOnceForEachItem"
-      }
-    },
-    {
-      "name": "Judge: tally",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2780,
-        1480
-      ],
-      "parameters": {
-        "jsCode": "\n// Self-consistency: a pair is decided only by unanimous votes, otherwise 'indistinguishable'.\nconst groups = {};\nfor (const item of $input.all()) {\n  const x = item.json;\n  const g = groups[x.image_id] ??= { record: x.record, pairs: {} };\n  if (x.skip) continue;\n  const key = x.pair.join('');\n  const pr = g.pairs[key] ??= { left: x.pair[0], right: x.pair[1], votes: [], cost_usd: 0, reasons: [] };\n  const text = (x.response.content || []).map(c => c.text || '').join('');\n  const m = text.match(/\"winner\"\\s*:\\s*\"(left|right)\"/);\n  const side = m ? m[1] : 'left';\n  pr.votes.push(side === 'left' ? x.left : x.right);\n  pr.reasons.push((text.match(/\"reason\"\\s*:\\s*\"([^\"]*)\"/) || [])[1] || '');\n  pr.cost_usd += x.response.usage.input_tokens * 2.0 / 1e6 + x.response.usage.output_tokens * 10.0 / 1e6;\n}\nreturn Object.entries(groups).map(([image_id, g]) => {\n  const judge = Object.values(g.pairs).map(pr => ({ image_id, left: pr.left, right: pr.right, votes: pr.votes,\n    winner: pr.votes.every(v => v === pr.votes[0]) ? pr.votes[0] : 'indistinguishable',\n    cost_usd: Number(pr.cost_usd.toFixed(5)), reasons: pr.reasons }));\n  const { judge_identical, ...record } = g.record;\n  const order = record.variants.map(v => v.variant).sort(() => Math.random() - 0.5);\n  return { json: { ...record, source: 'batch', order, judge: [...judge, ...(judge_identical || [])] } };\n});\n"
       }
     },
     {
@@ -900,7 +799,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3000,
+        2120,
         1480
       ],
       "parameters": {
@@ -1321,65 +1220,14 @@
       "main": [
         [
           {
-            "node": "Judge: pairs",
+            "node": "Record",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Judge: pairs": {
-      "main": [
-        [
-          {
-            "node": "Judge: route",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Judge: route": {
-      "main": [
-        [
-          {
-            "node": "Judge: tally",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Judge: Sonnet",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Judge: Sonnet": {
-      "main": [
-        [
-          {
-            "node": "Judge: keep meta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Judge: keep meta": {
-      "main": [
-        [
-          {
-            "node": "Judge: tally",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Judge: tally": {
+    "Record": {
       "main": [
         [
           {
