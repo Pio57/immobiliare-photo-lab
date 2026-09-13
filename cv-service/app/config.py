@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     # Hard bound for straightening, regardless of what any caller asks.
     max_rotate_deg: float = 10.0
 
-    # Repo root, for the dataset/runs filesystem bridge used by n8n Cloud.
+    # Root of dataset/ and experiments/. Defaults to the repo; REPO_ROOT overrides it in
+    # the container, where the two folders are mounted under /data.
     repo_root: str = str(Path(__file__).resolve().parents[2])
 
 
