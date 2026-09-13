@@ -16,7 +16,7 @@ clampati, mai rifiutati.
 | `gamma` | 0.5–2 | Luce | esposizione (<1 schiarisce); preceduta da livelli automatici (nero al p0,5) |
 | `clahe_clip` | 0–4 | Luce | contrasto locale; 0 su input compresso |
 | `denoise` | 0–15 | Pulizia | non-local means, scalato sulla risoluzione |
-| `rotate_deg` | −10–10 | Raddrizza | rotazione + ritaglio al rettangolo pieno; `crop_pct` riportato |
+| `rotate_deg` | −15–15 | Raddrizza | rotazione + ritaglio al rettangolo pieno; `crop_pct` riportato (36% a 15°) |
 | `sharpen` | 0–1 | Nitidezza | maschera di contrasto; amplifica bordi esistenti |
 | `recommendation` | apply · mild · keep_original | — | `mild` dimezza tutto, `keep_original` non tocca nulla |
 

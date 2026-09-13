@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     jpeg_quality: int = 90
 
     # Hard bound for straightening, regardless of what any caller asks.
-    max_rotate_deg: float = 10.0
+    max_rotate_deg: float = 15.0  # a 15 deg roll costs ~36% of the pixels: the most a listing photo can afford
 
     # Root of dataset/ and experiments/. Defaults to the repo; REPO_ROOT overrides it in
     # the container, where the two folders are mounted under /data.

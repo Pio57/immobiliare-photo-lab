@@ -38,7 +38,7 @@ Modules and their parameters (values outside the range are clamped):
 - Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set
   `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a
   crisp photo. It amplifies edges that exist, it cannot add detail.
-- Straighten — `rotate_deg` -10–10, positive = counter-clockwise. 0 = off.
+- Straighten — `rotate_deg` -15–15, positive = counter-clockwise. 0 = off.
   The measured `tilt_deg` is what the pipeline found from straight lines; when it is
   not 0 it is applied as measured and your value is ignored. When it is 0 the
   detector found no usable lines, which does NOT mean the photo is straight: **check
@@ -48,7 +48,7 @@ Modules and their parameters (values outside the range are clamped):
   the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line
   whose RIGHT end is LOWER than its left end needs a POSITIVE value
   (counter-clockwise); right end higher, negative. Typical hand-held tilt is 2–6
-  degrees. Above 10 degrees no rotation can fix it without cutting away too much:
+  degrees. Above 15 degrees no rotation can fix it without cutting away too much:
   keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice.
 
 You may only correct exposure, local contrast, white balance, sensor noise and

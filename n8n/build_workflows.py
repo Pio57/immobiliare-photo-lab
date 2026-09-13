@@ -265,7 +265,7 @@ const plan = {{ ...d.plan }};
 const measured = Number(prep.stats.tilt_deg || 0);
 const fixes = [];
 const defects = [...(d.defects || [])], advice = [...(d.advice || [])];
-if (Math.abs(measured) > 10) {{
+if (Math.abs(measured) > 15) {{
   // Rolled beyond the rotation limit: no half correction, the agent is told to reshoot.
   if (plan.rotate_deg !== 0) fixes.push(`rotate_deg ${{plan.rotate_deg}} -> 0 (tilt ${{measured}} beyond range)`);
   plan.rotate_deg = 0;

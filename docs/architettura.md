@@ -69,7 +69,7 @@ registrata in `plan_fixes` e contata nel tabellone:
    amplifica i blocchi JPEG sui muri piatti);
 4. `exposure` in stop diventa `gamma = 2^(−exposure/2)`: il modello ragiona in "più chiara di
    uno stop", non in gamma, che i modelli invertono di frequente;
-5. se l'inclinazione misurata supera i 12°, nessuna rotazione (il ritaglio necessario butterebbe
+5. se l'inclinazione misurata supera i 17°, nessuna rotazione (il ritaglio necessario butterebbe
    via troppa foto): il piano azzera `rotate_deg`, segna il difetto `tilt` e aggiunge il consiglio
    `reshoot`. Vale anche per le regole (D1).
 
@@ -265,7 +265,7 @@ orizzontali solo come riserva a consenso stretto, e con linee da un lato solo ac
 inclinazioni fino a 3° (una prospettiva non è una rotazione); se non trova nulla chiede una seconda
 opinione ai segmenti più lunghi (LSD, che segue anche spigoli a basso contrasto): se, tolti due
 valori anomali, pendono tutti dalla stessa parte di almeno 3° e concordano entro 8°, quella è la
-rotazione; oltre i 12° viene riportata ma non applicata. `auto_params` sono le regole di D1:
+rotazione, fino a 15° (ritaglio del 36%); oltre i 17° viene riportata ma non applicata. `auto_params` sono le regole di D1:
 su input compresso spegne CLAHE, alza il denoise e limita la nitidezza.
 
 ### 4.3 Il controllo di fedeltà (`app/core/metrics.py`)

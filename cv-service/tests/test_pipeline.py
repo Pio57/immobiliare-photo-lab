@@ -13,7 +13,7 @@ def _rotate(img, deg):
 
 def test_params_are_clamped_not_rejected():
     p = EnhanceParams(gamma=9.0, clahe_clip=-1, white_balance=3, denoise=99, rotate_deg=45)
-    assert (p.gamma, p.clahe_clip, p.white_balance, p.denoise, p.rotate_deg) == (2.0, 0.0, 1.0, 15, 10.0)
+    assert (p.gamma, p.clahe_clip, p.white_balance, p.denoise, p.rotate_deg) == (2.0, 0.0, 1.0, 15, 15.0)
 
 
 def test_tilt_estimate_has_the_right_sign(room):
@@ -71,7 +71,7 @@ def test_roll_beyond_the_limit_is_reported_not_half_corrected(room):
     rules do not rotate (no crop can pay for it) and the defect is still named."""
     rolled = _rotate(room, 20.0)
     est = pipeline.estimate_tilt(rolled)
-    assert est < -12, est
+    assert est < -17, est
     stats = pipeline.analyze(rolled)
     params = pipeline.auto_params(rolled, stats)
     assert params.rotate_deg == 0.0
