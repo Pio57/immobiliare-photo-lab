@@ -87,7 +87,7 @@ export function EsperimentoView() {
         <SectionTitle
           eyebrow="Elementi qualitativi"
           title="Le quattro misure del test cieco"
-          hint="Ogni valutatore, nella vista Studio, risponde senza sapere quale metodo ha prodotto cosa. Realismo: originale accanto a una versione, «vedi elementi finti o diversi?». Qualità: la sola versione, voto da 1 a 5. Foto migliore: originale in alto e le versioni affiancate, «quale useresti?». Output efficace: la versione è pubblicabile così com’è, cioè voto almeno 4 e nessuna alterazione vista dallo stesso valutatore."
+          hint="Ogni valutatore, nella vista Studio, risponde senza sapere quale metodo ha prodotto cosa. Realismo: originale accanto a una versione, «vedi elementi finti o diversi?». Qualità: la sola versione, voto da 1 a 5. Foto migliore: originale in alto e le versioni affiancate, «quale useresti?». Output efficace: non richiede una valutazione aggiuntiva, incrocia realismo e qualità dello stesso valutatore; efficace = voto almeno 4 su 5 e nessuna segnalazione di alterazione. Il risultato è il tasso di pubblicabilità."
         />
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -97,7 +97,7 @@ export function EsperimentoView() {
                 <th className={th}>Realismo · tasso di alterazione</th>
                 <th className={th}>Qualità · voto medio (1–5)</th>
                 <th className={th}>Foto migliore · quota di vittorie</th>
-                <th className={th}>Output efficace · foto pubblicabili</th>
+                <th className={th}>Output efficace · tasso di pubblicabilità</th>
               </tr>
             </thead>
             <tbody>
