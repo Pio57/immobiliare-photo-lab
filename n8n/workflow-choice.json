@@ -58,7 +58,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/choices",
+        "url": "http://cv-service:8000/choices",
         "options": {
           "timeout": 180000
         },
@@ -120,7 +120,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/summary",
+        "url": "http://cv-service:8000/summary",
         "options": {
           "timeout": 180000
         }
@@ -194,7 +194,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://86d2-147-53-207-91.ngrok-free.app/runs/{{ $json.query.image_id }}/cards",
+        "url": "=http://cv-service:8000/runs/{{ $json.query.image_id }}/cards",
         "options": {
           "timeout": 60000
         }
@@ -266,7 +266,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/study",
+        "url": "http://cv-service:8000/study",
         "options": {
           "timeout": 180000
         }

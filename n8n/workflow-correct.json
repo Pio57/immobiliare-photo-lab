@@ -97,7 +97,7 @@
         160
       ],
       "parameters": {
-        "jsCode": "\n// Real-ESRGAN x2: image inline (small by definition: this lane runs only below 1000 px)\n// or by dataset URL in the batch.\nconst s = $input.item.json;\nconst image = s.input.image_id ? `${\"https://86d2-147-53-207-91.ngrok-free.app\"}/dataset/${s.input.image_id}/file` : `data:image/jpeg;base64,${s.input.image_b64}`;\nreturn { json: { ...s, _t0: Date.now(), body: { version: \"b3ef194191d13140337468c916c2c5b96dd0cb06dffc032a022a31807f6a5ea8\", input: { image, scale: 2, face_enhance: false } } } };\n",
+        "jsCode": "\n// Real-ESRGAN x2: image inline (small by definition: this lane runs only below 1000 px)\n// or by dataset URL in the batch.\nconst s = $input.item.json;\nconst image = s.input.image_id ? `${\"http://cv-service:8000\"}/dataset/${s.input.image_id}/file` : `data:image/jpeg;base64,${s.input.image_b64}`;\nreturn { json: { ...s, _t0: Date.now(), body: { version: \"b3ef194191d13140337468c916c2c5b96dd0cb06dffc032a022a31807f6a5ea8\", input: { image, scale: 2, face_enhance: false } } } };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -177,7 +177,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/gate_remote",
+        "url": "http://cv-service:8000/gate_remote",
         "options": {
           "timeout": 180000
         },
@@ -272,7 +272,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },
@@ -431,7 +431,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },
@@ -590,7 +590,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },
@@ -749,7 +749,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },
@@ -908,7 +908,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },
@@ -1048,7 +1048,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "url": "http://cv-service:8000/apply",
         "options": {
           "timeout": 180000
         },

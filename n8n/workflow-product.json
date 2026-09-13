@@ -86,7 +86,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/prepare",
+        "url": "http://cv-service:8000/prepare",
         "options": {
           "timeout": 180000
         },
@@ -156,7 +156,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://86d2-147-53-207-91.ngrok-free.app/runs/{{ $json.image_id }}",
+        "url": "=http://cv-service:8000/runs/{{ $json.image_id }}",
         "options": {
           "timeout": 180000
         },
@@ -209,7 +209,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "6FpWUt4W3SG0YgVw"
+          "value": "GPyWhY0pZzntYfsQ"
         },
         "mode": "each",
         "options": {
@@ -331,7 +331,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "6FpWUt4W3SG0YgVw"
+          "value": "GPyWhY0pZzntYfsQ"
         },
         "mode": "each",
         "options": {
@@ -457,7 +457,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "6FpWUt4W3SG0YgVw"
+          "value": "GPyWhY0pZzntYfsQ"
         },
         "mode": "each",
         "options": {
@@ -675,7 +675,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/gate_remote",
+        "url": "http://cv-service:8000/gate_remote",
         "options": {
           "timeout": 180000
         },
@@ -710,7 +710,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://86d2-147-53-207-91.ngrok-free.app/prepare",
+        "url": "http://cv-service:8000/prepare",
         "options": {
           "timeout": 180000
         },
