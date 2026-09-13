@@ -1,13 +1,13 @@
-# cv-service next to a Hostinger "n8n" VPS template (n8n already running in Docker).
+# cv-service next to the Hostinger "n8n" VPS template (n8n already running in Docker).
+# It joins n8n's own compose network, so n8n reaches it as http://cv-service:8000 and the
+# link survives restarts of either container.
 #
 #   git clone https://github.com/Pio57/immobiliare-photo-lab.git /opt/photo-lab
-#   cd /opt/photo-lab && cp .env.example .env && nano .env      # only REPLICATE/ANTHROPIC are needed by n8n, not here
-#   docker network create photolab || true
-#   docker compose -f deploy/docker-compose.yml up -d --build
+#   cd /opt/photo-lab
+#   N8N_NETWORK=$(docker inspect <n8n container> --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+#   N8N_NETWORK=$N8N_NETWORK docker compose -f deploy/docker-compose.yml up -d --build
 #
-# Then attach the n8n container to the same network so it can reach http://cv-service:8000:
-#   docker network connect photolab <n8n container name>
-# and set CV_SERVICE_PUBLIC_URL=http://cv-service:8000 in .env before regenerating the workflows.
+# Then set CV_SERVICE_PUBLIC_URL=http://cv-service:8000 in .env before regenerating the workflows.
 services:
   cv-service:
     build: ../cv-service
@@ -19,7 +19,8 @@ services:
       - ../dataset:/data/dataset
       - ../experiments:/data/experiments
     expose: ["8000"]
-    networks: [photolab]
+    networks: [n8n]
 networks:
-  photolab:
+  n8n:
     external: true
+    name: ${N8N_NETWORK:-n8n-8zow_default}
