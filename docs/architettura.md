@@ -135,7 +135,7 @@ della curva tonale, pulizia dopo, rotazione, nitidezza per ultima). Chiusura:
 Una foto solo storta passa quindi da un solo nodo *applica* (Raddrizza) più il finale; una foto
 senza difetti non chiama nulla e torna `changed: false`.
 
-### 3.2 Prodotto (`workflow-product.json`, 41 nodi, webhook `photo-lab-product`)
+### 3.2 Prodotto (`workflow-product.json`, 45 nodi, webhook `photo-lab-product`)
 
 ![Il canvas di Prodotto: ingresso, risposta immediata, tre corsie in parallelo, merge e record](../n8n/screenshots/product.png)
 
@@ -152,14 +152,18 @@ Da qui tre corsie in parallelo.
 Prepara) → `D1: Correggi` (Execute Workflow, attende il sotto-workflow) → `Record D1` (Code,
 costruisce il `VariantResult`).
 
-**Corsia D2** (12 nodi):
+**Corsia D2** (16 nodi):
 
 | nodo | tipo | cosa fa |
 |---|---|---|
+| D2: quattro versi | HTTP | `POST cv-service/turns`: la foto girata di 0, 90, 180, 270 gradi, in miniatura |
+| D2: verso richiesta | Code | la domanda al modello: quattro immagini, "qual è quella dritta?", una lettera di risposta |
+| D2: verso modello | HTTP | chiamata ad Anthropic (circa 1.100 token, 1,5 s) |
+| D2: verso lettura | Code | lettera → quarto di giro (`orientation`); posta come scelta il modello non sbaglia (16/16 sul banco), come angolo sbaglia direzione una volta su due |
 | D2: richiesta | Code | corpo per Anthropic: system e user da `prompts/diagnosis.md`, foto in base64, misure di Prepara in JSON, `max_tokens 600`, thinking disabilitato |
 | D2: modello | HTTP | `POST api.anthropic.com/v1/messages`, credenziale `anthropicApi` di n8n |
 | D2: lettura | Code | `parse_js`: estrae il JSON dalla risposta, calcola il costo dai token a prezzo di listino, converte `exposure` in gamma; risposta illeggibile → `error` e piano nullo |
-| D2: piano | Code | `plan_js`: piano del modello se c'è, altrimenti riserva sulle regole; applica le guardie |
+| D2: piano | Code | `plan_js`: piano del modello se c'è, altrimenti riserva sulle regole; applica le guardie; l'orientamento viene dalla domanda a quattro vie, non dalla diagnosi |
 | D2: Correggi | Execute Workflow | prima correzione |
 | D2: verifica richiesta | Code | corpo della verifica: ORIGINAL e CORRECTED come immagini, il piano e le righe dei moduli eseguiti, prompt Review |
 | D2: verifica modello | HTTP | seconda chiamata ad Anthropic |
@@ -208,7 +212,7 @@ con CORS aperto:
 | `photo-lab-result` | GET | `GET /runs/{image_id}/cards` | le tre versioni di un'esecuzione, per la Prova (polling) e per lo Studio |
 | `photo-lab-study` | GET | `GET /study` | gli id dello studio, quali sono pronti, i valutatori finora |
 
-### 3.4 Batch (`workflow-batch.json`, 43 nodi, avvio manuale)
+### 3.4 Batch (`workflow-batch.json`, 47 nodi, avvio manuale)
 
 ![Il canvas di Batch: ciclo sulle foto, le stesse corsie in sequenza](../n8n/screenshots/batch.png)
 
@@ -257,7 +261,7 @@ FastAPI, Python 3.12, OpenCV. Trentacinque test (`pytest`). Configurazione in `a
 `white_balance`; livelli automatici (nero al percentile 0,5) e gamma; CLAHE con `clahe_clip`;
 denoise non-local means con forza `denoise` scalata sulla risoluzione; rotazione di `rotate_deg`
 con ritaglio al rettangolo pieno (il `crop_pct` viene riportato); maschera di contrasto con
-`sharpen`. `analyze` produce le misure; `estimate_tilt` usa le linee verticali (Canny + Hough), con le
+`sharpen`, preceduti da `turn` (quarto di giro senza perdita, `orientation`). `analyze` produce le misure; `estimate_tilt` usa le linee verticali (Canny + Hough), con le
 orizzontali solo come riserva a consenso stretto, e con linee da un lato solo accetta soltanto
 inclinazioni fino a 3° (una prospettiva non è una rotazione); se non trova nulla chiede una seconda
 opinione ai segmenti più lunghi (LSD, che segue anche spigoli a basso contrasto): se, tolti due

@@ -19,6 +19,7 @@ class EnhanceParams(BaseModel):
     white_balance: float = Field(0.0, description="Gray-world white balance strength, 0..1.")
     denoise: int = Field(0, description="Non-local-means strength h. 0 = off.")
     rotate_deg: float = Field(0.0, description="Straightening rotation, positive = counter-clockwise.")
+    orientation: int = Field(0, description="Lossless quarter-turn, clockwise degrees (0, 90, 180, 270): a photo on its side or upside down.")
     sharpen: float = Field(0.0, description="Unsharp-mask amount, 0..1. Amplifies existing edges, invents none.")
     auto_straighten: bool = Field(False, description="Estimate rotate_deg from dominant vertical lines.")
     recommendation: Literal["apply", "mild", "keep_original"] = Field(
@@ -41,6 +42,7 @@ class EnhanceParams(BaseModel):
         for name, (lo, hi) in self.BOUNDS.items():
             value = getattr(self, name)
             setattr(self, name, type(value)(min(max(value, lo), hi)))
+        self.orientation = int(round(self.orientation / 90.0)) * 90 % 360  # snap to a quarter turn
         return self
 
     def is_neutral(self) -> bool:

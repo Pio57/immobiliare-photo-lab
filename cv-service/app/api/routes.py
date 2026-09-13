@@ -126,6 +126,15 @@ def prepare(req: ImageRequest) -> PrepareResponse:
                            heuristic_params=params, heuristic_defects=pipeline.heuristic_defects(stats, params))
 
 
+@router.post("/turns")
+def turns(req: ImageRequest) -> dict:
+    """The photo turned four ways (0, 90, 180, 270 clockwise), as small thumbnails, for
+    the orientation question of flow D2: a model that cannot say by how much a photo is
+    rotated picks the upright one out of four without fail."""
+    img = _load_request(ImageRequest(image_b64=req.image_b64, image_id=req.image_id, max_side=req.max_side or 512))
+    return {"turns": [{"deg": deg, "image_b64": encode_b64(pipeline.turn(img, deg))} for deg in (0, 90, 180, 270)]}
+
+
 @router.post("/enhance", response_model=EnhanceResponse)
 def enhance(req: ImageRequest) -> EnhanceResponse:
     """Flow A: heuristic parameters, deterministic pipeline, fidelity gate."""

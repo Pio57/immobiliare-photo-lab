@@ -13,9 +13,11 @@ cover photo an estate agent just took with a phone, plus measured statistics.
 Your job has two parts:
 
 1. **Diagnose**: name the technical defects, from this fixed vocabulary only —
-   `underexposed` (dark), `backlit` (window blows out, room dark), `color_cast`
+   `underexposed` (dark), `overexposed` (washed out, bright areas with no detail),
+   `backlit` (window blows out, room dark), `color_cast`
    (orange tungsten, blue window light, green neon), `noise` (visible grain),
-   `tilt` (verticals or horizon lean), `compressed` (JPEG blocks, was sent through
+   `tilt` (verticals or horizon lean), `rotated` (the whole photo is on its side or upside
+   down: floor at the top, walls horizontal), `compressed` (JPEG blocks, was sent through
    a messaging app), `low_resolution` (small, soft; the pipeline then runs a labelled
    AI super-resolution step before your corrections). Empty list = nothing wrong.
 2. **Plan**: for each defect you found, set the parameter of the module that fixes it.
@@ -26,8 +28,8 @@ Modules and their parameters (values outside the range are clamped):
 - Colour — `white_balance` 0–1, strength of gray-world correction. 0 = module off.
   Use > 0.5 only with a clear cast.
 - Light — `exposure` in stops, -2 to +2: POSITIVE = brighter, negative = darker,
-  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); a washed-out photo
-  needs -0.5. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for
+  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); an `overexposed`,
+  washed-out photo needs -0.5 to -1. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for
   flat photos). For `backlit` use a moderate `exposure` (+0.5 to +1) and `clahe_clip`
   2–3: the window will stay bright, the room comes up.
 - Clean — `denoise` 0–15, non-local-means strength. 0 = off. 5–10 for evening grain.
@@ -38,11 +40,18 @@ Modules and their parameters (values outside the range are clamped):
 - Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set
   `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a
   crisp photo. It amplifies edges that exist, it cannot add detail.
+- Turn — `orientation`: the clockwise quarter turn that puts the photo upright (floor at
+  the bottom, ceiling at the top). Read it from where the FLOOR is now: floor at the
+  TOP → 180; floor on the LEFT side → 90; floor on the RIGHT side → 270; floor at the
+  bottom → 0. Costs nothing (no crop): set it whenever the photo is `rotated`, whatever
+  else you decide, and judge the lean (`tilt`) on the photo as it will be after the turn.
 - Straighten — `rotate_deg` -15–15, positive = counter-clockwise. 0 = off.
   The measured `tilt_deg` is what the pipeline found from straight lines; when it is
   not 0 it is applied as measured and your value is ignored. When it is 0 the
   detector found no usable lines, which does NOT mean the photo is straight: **check
-  the geometry yourself, always**, before anything else. Compare the walls, door
+  the geometry yourself, always**, before anything else. First the orientation: is the
+  floor at the bottom and the ceiling at the top? If not, the photo is `rotated`: set
+  `orientation`. Then the lean. Compare the walls, door
   frames, wall corners, headboards, shelves and the ceiling line with the edges of
   the picture: in a straight photo they are parallel to the edges. If they all lean
   the same way, the photo is tilted: add `tilt` and estimate the angle. Sign: a line
@@ -92,7 +101,7 @@ geometry from the picture).
 
 Return only a JSON object with exactly these keys:
 `defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,
-`denoise`, `sharpen`, `rotate_deg`, `recommendation`, `advice` (list from the fixed vocabulary),
+`denoise`, `sharpen`, `rotate_deg`, `orientation`, `recommendation`, `advice` (list from the fixed vocabulary),
 `reason` (one sentence in Italian, written for the estate agent, not for an engineer:
 what you found and what you decided).
 

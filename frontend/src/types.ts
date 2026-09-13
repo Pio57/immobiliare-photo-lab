@@ -20,10 +20,12 @@ export const VARIANT_SUBTITLE: Record<VariantId, string> = {
 /** Defect vocabulary shared by every diagnoser and by the hand labels. */
 export const DEFECT_LABEL: Record<string, string> = {
   underexposed: 'buia',
+  overexposed: 'troppo chiara',
   backlit: 'controluce',
   color_cast: 'colore falsato',
   noise: 'rumorosa',
   tilt: 'storta',
+  rotated: 'girata',
   compressed: 'compressa',
   low_resolution: 'bassa risoluzione',
   blur: 'mossa / sfocata',
@@ -40,7 +42,7 @@ export const MODULE_INFO: Record<ModuleName, { fixes: string; params: string }> 
   Colore: { fixes: 'colore falsato', params: 'white_balance' },
   Luce: { fixes: 'buia / controluce', params: 'livelli, gamma, clahe_clip' },
   Pulizia: { fixes: 'rumore, blocchi JPEG', params: 'denoise' },
-  Raddrizza: { fixes: 'storta', params: 'rotate_deg' },
+  Raddrizza: { fixes: 'storta, girata', params: 'rotate_deg, orientation' },
   Nitidezza: { fixes: 'morbida dopo pulizia', params: 'sharpen' },
 }
 
@@ -190,6 +192,8 @@ export interface EnhanceParams {
   white_balance: number
   denoise: number
   rotate_deg: number
+  /** lossless quarter turn, clockwise degrees: 0, 90, 180, 270 */
+  orientation?: number
   sharpen?: number
   auto_straighten: boolean
   /** whether correcting this photo is worth it at all (mild = every value halved) */

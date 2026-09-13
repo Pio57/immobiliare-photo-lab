@@ -60,10 +60,10 @@ MODULES = [
     ("Colore", ["white_balance"], "$json.plan.white_balance > 0"),
     ("Luce", ["gamma", "clahe_clip"], "$json.plan.gamma !== 1 || $json.plan.clahe_clip > 0"),
     ("Pulizia", ["denoise"], "$json.plan.denoise > 0"),
-    ("Raddrizza", ["rotate_deg"], "$json.plan.rotate_deg !== 0"),
+    ("Raddrizza", ["rotate_deg", "orientation"], "$json.plan.rotate_deg !== 0 || ($json.plan.orientation || 0) !== 0"),
     ("Nitidezza", ["sharpen"], "$json.plan.sharpen > 0"),
 ]
-NEUTRAL = {"gamma": 1.0, "clahe_clip": 0.0, "white_balance": 0.0, "denoise": 0, "rotate_deg": 0.0, "sharpen": 0.0}
+NEUTRAL = {"gamma": 1.0, "clahe_clip": 0.0, "white_balance": 0.0, "denoise": 0, "rotate_deg": 0.0, "sharpen": 0.0, "orientation": 0}
 
 
 def read_env(name: str, default: str = "") -> str:
@@ -211,6 +211,36 @@ return {{ json: {{ t0: Date.now(), model: {js_string(model)}, correggi: r,
 """
 
 
+def turn_request_js(model: str) -> str:
+    """The orientation question: four thumbnails, one letter back."""
+    return f"""
+// Orientation as a four-way choice (see /turns). The same photo at 0/90/180/270 clockwise.
+const prep = $('Prepara').first().json;
+const turns = $input.item.json.turns;
+const letters = ['A', 'B', 'C', 'D'];
+const content = [];
+turns.forEach((t, i) => {{ content.push({{ type: 'text', text: letters[i] + ':' }});
+  content.push({{ type: 'image', source: {{ type: 'base64', media_type: 'image/jpeg', data: t.image_b64 }} }}); }});
+content.push({{ type: 'text', text: 'These are the same interior photo turned four ways. Exactly one is upright: floor at the bottom, ceiling at the top, walls vertical, furniture standing on the floor. Answer with the letter only.' }});
+return {{ json: {{ image_id: prep.image_id, t0: Date.now(), degs: turns.map(t => t.deg),
+  body: {{ model: {js_string(model)}, max_tokens: 5, thinking: {{ type: 'disabled' }}, messages: [{{ role: 'user', content }}] }} }} }};
+"""
+
+
+def turn_parse_js(model: str, request_node: str) -> str:
+    p_in, p_out = PRICE[model]
+    return f"""
+// The letter -> the clockwise quarter turn. No answer = leave the photo as it is.
+const r = $input.item.json;
+const req = $('{request_node}').first().json;
+const text = ((r.content || []).map(c => c.text || '').join('')).toUpperCase();
+const letter = ['A', 'B', 'C', 'D'].find(l => text.includes(l));
+const orientation = letter ? req.degs[['A', 'B', 'C', 'D'].indexOf(letter)] : 0;
+const cost_usd = r.usage ? r.usage.input_tokens * {p_in} / 1e6 + r.usage.output_tokens * {p_out} / 1e6 : 0;
+return {{ json: {{ image_id: req.image_id, orientation, cost_usd, latency_ms: Date.now() - req.t0, error: r.content ? null : 'orientation check failed' }} }};
+"""
+
+
 def parse_js(model: str, request_node: str) -> str:
     p_in, p_out = PRICE[model]
     return f"""
@@ -237,15 +267,23 @@ else try {{
   const exposure = Math.max(-2, Math.min(2, Number(o.exposure ?? 0)));
   plan = {{ gamma: Number(Math.pow(2, -exposure / 2).toFixed(2)), clahe_clip: Number(o.clahe_clip ?? 0), white_balance: Number(o.white_balance ?? 0),
            denoise: Math.round(Number(o.denoise ?? 0)), rotate_deg: Number(o.rotate_deg ?? 0),
-           sharpen: Number(o.sharpen ?? 0), exposure }};
+           sharpen: Number(o.sharpen ?? 0), orientation: [0, 90, 180, 270].includes(Number(o.orientation)) ? Number(o.orientation) : 0, exposure }};
   if (Object.values(plan).some(v => Number.isNaN(v))) throw new Error('non-numeric parameter');
 }} catch (e) {{ error = `diagnosis JSON unreadable: ${{String(e).slice(0, 80)}} | ${{text.slice(0, 120)}}`; }}
 return {{ json: {{ model: {js_string(model)}, plan, defects, advice, reason, recommendation, verdict, cost_usd, latency_ms: Date.now() - t0, error, body: null }} }};
 """
 
 
-def plan_js(variant: str, label: str, prepare_node: str, diagnosis_node: str | None, input_expr: str, save_as_expr: str) -> str:
+def plan_js(variant: str, label: str, prepare_node: str, diagnosis_node: str | None, input_expr: str, save_as_expr: str,
+            turn_node: str | None = None) -> str:
     """Turn a diagnosis (model or heuristic) into the item Correggi expects."""
+    turn = "" if turn_node is None else f"""
+// Orientation comes from the four-way question, not from the diagnosis (see 'quattro versi').
+try {{ const t = $('{turn_node}').first().json; if (t && t.image_id === prep.image_id) {{
+  if ((plan.orientation || 0) !== t.orientation) fixes.push(`orientation ${{plan.orientation || 0}} -> ${{t.orientation}} (four-way check)`);
+  plan.orientation = t.orientation; extra_cost += t.cost_usd || 0; extra_latency += t.latency_ms || 0;
+  if (t.orientation && !defects.includes('rotated')) defects.push('rotated');
+  if (!t.orientation) {{ const i = defects.indexOf('rotated'); if (i >= 0) defects.splice(i, 1); }} }} }} catch (e) {{}}"""
     return f"""
 // The plan for Correggi: which parameters, from whom, and where the result goes.
 const prep = $('{prepare_node}').first().json;
@@ -260,7 +298,8 @@ const plan = {{ ...d.plan }};
 // the angle less so; and the gate cannot catch a wrong sign (it aligns the original).
 const measured = Number(prep.stats.tilt_deg || 0);
 const fixes = [];
-const defects = [...(d.defects || [])], advice = [...(d.advice || [])];
+let extra_cost = 0, extra_latency = 0;
+const defects = [...(d.defects || [])], advice = [...(d.advice || [])];{turn}
 if (Math.abs(measured) > 15) {{
   // Rolled beyond the rotation limit: no half correction, the agent is told to reshoot.
   if (plan.rotate_deg !== 0) fixes.push(`rotate_deg ${{plan.rotate_deg}} -> 0 (tilt ${{measured}} beyond range)`);
@@ -278,12 +317,12 @@ const compressed = (prep.stats.input_warnings || []).some(w => String(w).startsW
 if (compressed && plan.clahe_clip > 0) {{ fixes.push(`clahe_clip ${{plan.clahe_clip}} -> 0 (compressed input)`); plan.clahe_clip = 0; }}
 if (compressed && plan.sharpen > 0.2) {{ fixes.push(`sharpen ${{plan.sharpen}} -> 0.2 (compressed input)`); plan.sharpen = 0.2; }}
 delete plan.exposure;
-if (d.recommendation === 'keep_original') Object.assign(plan, {json.dumps(NEUTRAL)});
+if (d.recommendation === 'keep_original') {{ const o = plan.orientation || 0; Object.assign(plan, {json.dumps(NEUTRAL)}); if (o) {{ plan.orientation = o; d.recommendation = 'apply'; fixes.push('keep_original -> apply: the photo had to be turned'); }} }}
 plan.recommendation = d.recommendation === 'mild' ? 'mild' : 'apply';
 return {{ json: {{ variant: {js_string(variant)}, label: {js_string(label)}, image_id: prep.image_id, source, model: d.model || null, verdict: d.verdict || null,
   input: {{ ...{input_expr}, low_resolution: (prep.stats.input_warnings || []).some(w => String(w).startsWith('low_resolution')) }}, save_as: {save_as_expr},
   plan, plan_fixes: fixes, defects, advice, reason: d.reason, recommendation: d.recommendation,
-  diagnosis_cost_usd: d.cost_usd, diagnosis_latency_ms: d.latency_ms, diagnosis_error: d.error, t0: Date.now() }} }};
+  diagnosis_cost_usd: (d.cost_usd || 0) + extra_cost, diagnosis_latency_ms: (d.latency_ms || 0) + extra_latency, diagnosis_error: d.error, t0: Date.now() }} }};
 """
 
 
@@ -514,7 +553,7 @@ return {{ json: {{ image_id, variants: [...{prev}, v], judge: [] }} }};
 
 
 def diagnoser_lane(nodes: list, connections: dict, *, variant: str, label: str, model: str | None, second_look: bool,
-                   src: str, x: int, y: int, correct_id: str, image_expr: str, input_expr: str, save_as_expr: str,
+                   src: str, x: int, y: int, correct_id: str, cv_url: str, image_expr: str, input_expr: str, save_as_expr: str,
                    original_expr: str, corrected_expr: str, chained_to: str | None) -> str:
     """Diagnosis -> plan -> Correggi -> (second look -> Correggi again) -> Record.
     Returns the name of the Record node. Same lane in the product and in the batch:
@@ -524,14 +563,22 @@ def diagnoser_lane(nodes: list, connections: dict, *, variant: str, label: str, 
         nodes.append(code(f"{variant}: piano", plan_js(variant, label, "Prepara", None, input_expr, save_as_expr), x, y))
         connect(connections, src, f"{variant}: piano")
     else:
+        # Orientation first: the same photo turned four ways, "which one is upright?".
+        # Asked as a choice it is answered without fail (16/16 on the bench); asked as an
+        # angle the model gets the direction wrong half the time.
         nodes += [
+            http_cv(f"{variant}: quattro versi", f"{cv_url}/turns", "={{ JSON.stringify({ image_b64: $('Prepara').first().json.image_b64 }) }}", x - 880, y + 160),
+            code(f"{variant}: verso richiesta", turn_request_js(model), x - 660, y + 160),
+            http_anthropic(f"{variant}: verso modello", x - 440, y + 160, keep_alive=True),
+            code(f"{variant}: verso lettura", turn_parse_js(model, f"{variant}: verso richiesta"), x - 220, y + 160),
             code(f"{variant}: richiesta", build_request_js(model, image_expr, stats_expr), x, y),
             http_anthropic(f"{variant}: modello", x + 220, y, keep_alive=True),
             code(f"{variant}: lettura", parse_js(model, f"{variant}: richiesta"), x + 440, y),
-            code(f"{variant}: piano", plan_js(variant, label, "Prepara", f"{variant}: lettura", input_expr, save_as_expr), x + 660, y),
+            code(f"{variant}: piano", plan_js(variant, label, "Prepara", f"{variant}: lettura", input_expr, save_as_expr, turn_node=f"{variant}: verso lettura"), x + 660, y),
         ]
-        connect(connections, src, f"{variant}: richiesta")
-        chain(connections, [f"{variant}: richiesta", f"{variant}: modello", f"{variant}: lettura", f"{variant}: piano"])
+        connect(connections, src, f"{variant}: quattro versi")
+        chain(connections, [f"{variant}: quattro versi", f"{variant}: verso richiesta", f"{variant}: verso modello", f"{variant}: verso lettura",
+                            f"{variant}: richiesta", f"{variant}: modello", f"{variant}: lettura", f"{variant}: piano"])
     nodes.append(execute_workflow(f"{variant}: Correggi", correct_id, x + 900, y))
     connect(connections, f"{variant}: piano", f"{variant}: Correggi")
     record = f"Record {variant}"
@@ -560,7 +607,7 @@ def diagnoser_lane(nodes: list, connections: dict, *, variant: str, label: str, 
 
 LANE_NOTES = {
     "D1": ("D1 - Regole", "Regole sui numeri misurati da /prepare decidono cosa correggere e con quali valori. Zero modelli, costo 0. La baseline: se un modello non la batte, non serve.", 5),
-    "D2": ("D2 - Haiku + verifica", "Il modello guarda foto + numeri, nomina i difetti (vocabolario fisso), sceglie i VALORI dei moduli che servono. Poi guarda il RISULTATO accanto all'originale: se vede ancora un difetto (o uno nuovo: velo, chiazze, cera) corregge il piano e rifa' un giro. Il flusso agentico chiuso.", 3),
+    "D2": ("D2 - Haiku + verifica", "Prima il verso: la foto girata in quattro modi, 'qual e' quella dritta?' (a scelta il modello non sbaglia, a gradi si'). Poi il modello guarda foto + numeri, nomina i difetti (vocabolario fisso), sceglie i VALORI dei moduli che servono. Poi guarda il RISULTATO accanto all'originale: se vede ancora un difetto (o uno nuovo: velo, chiazze, cera) corregge il piano e rifa' un giro. Il flusso agentico chiuso.", 3),
     "D3": ("D3 - Generativo", "SDXL + ControlNet (Replicate) riceve la foto e l'istruzione 'ben esposta, colori naturali, pulita, nitida, stanza invariata' e RIDISEGNA i pixel. Un colpo solo, niente moduli, non puo' raddrizzare. Stesso gate: e' l'unico che puo' violare la policy, quindi l'unico che il gate boccia davvero.", 6),
 }
 
@@ -731,7 +778,7 @@ return { json: { image_id: prep.image_id, source: 'live', judge: [], order,
         nodes.append(sticky(title, body, 620, y - 100, 3000, 300, colour))
         record = diagnoser_lane(
             nodes, connections, variant=variant, label=label, model=model, second_look=second_look,
-            src="Rispondi subito", x=920, y=y, correct_id=correct_id,
+            src="Rispondi subito", x=920, y=y, correct_id=correct_id, cv_url=cv_url,
             image_expr="{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $('Prepara').first().json.image_b64 } }",
             input_expr="{ image_b64: prep.image_b64 }", save_as_expr=f"prep.image_id + '_{variant}'",
             original_expr="{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $('Prepara').first().json.image_b64 } }",
@@ -857,7 +904,7 @@ return $input.first().json.images.filter(i => !want.length || want.includes(i.im
         nodes.append(sticky(title, body, 1800, y - 100, 3300, 280, colour))
         record = diagnoser_lane(
             nodes, connections, variant=variant, label=label, model=model, second_look=second_look,
-            src=src, x=1900, y=y, correct_id=correct_id,
+            src=src, x=1900, y=y, correct_id=correct_id, cv_url=cv_url,
             image_expr="{ type: 'image', source: { type: 'url', url: `${$('Config').first().json.cv_url}/dataset/${$('Current image').first().json.image_id}/file?max_side=1024` } }",
             input_expr="{ image_id: prep.image_id }", save_as_expr=f"prep.image_id + '_{variant}'",
             original_expr="{ type: 'image', source: { type: 'url', url: `${$('Config').first().json.cv_url}/dataset/${image_id}/file?max_side=1024` } }",

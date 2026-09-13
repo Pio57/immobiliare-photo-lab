@@ -142,3 +142,18 @@ def test_max_side_override(room):
 
 def test_gate_remote_requires_url(room):
     assert client.post("/gate_remote", json={"original_b64": encode_b64(room)}).status_code == 422
+
+
+def test_turns_gives_the_four_quarter_turns(room):
+    import base64
+
+    import cv2
+
+    b64 = base64.b64encode(cv2.imencode(".jpg", room)[1].tobytes()).decode("ascii")
+    res = client.post("/turns", json={"image_b64": b64}).json()
+    assert [t["deg"] for t in res["turns"]] == [0, 90, 180, 270]
+    sizes = []
+    for t in res["turns"]:
+        img = cv2.imdecode(__import__("numpy").frombuffer(base64.b64decode(t["image_b64"]), "uint8"), cv2.IMREAD_COLOR)
+        sizes.append(img.shape[:2])
+    assert max(sizes[0]) <= 512 and sizes[1] == sizes[0][::-1] and sizes[2] == sizes[0]

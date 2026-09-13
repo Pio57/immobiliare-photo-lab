@@ -76,3 +76,14 @@ def test_roll_beyond_the_limit_is_reported_not_half_corrected(room):
     params = pipeline.auto_params(rolled, stats)
     assert params.rotate_deg == 0.0
     assert "tilt" in pipeline.heuristic_defects(stats, params)
+
+
+def test_orientation_is_a_lossless_quarter_turn(room):
+    upside_down = pipeline.turn(room, 180)
+    out, resolved = pipeline.apply(upside_down, EnhanceParams(orientation=180))
+    assert out.shape == room.shape and (out == room).all()
+    assert resolved.orientation == 180
+    assert EnhanceParams(orientation=185).orientation == 180  # snapped
+    # the gate compares against the original turned the same way: a pure turn is a pass
+    from app.core.metrics import fidelity
+    assert fidelity(pipeline.aligned_reference(upside_down, resolved), out).passed

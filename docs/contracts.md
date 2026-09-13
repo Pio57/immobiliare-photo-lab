@@ -17,6 +17,7 @@ clampati, mai rifiutati.
 | `clahe_clip` | 0–4 | Luce | contrasto locale; 0 su input compresso |
 | `denoise` | 0–15 | Pulizia | non-local means, scalato sulla risoluzione |
 | `rotate_deg` | −15–15 | Raddrizza | rotazione + ritaglio al rettangolo pieno; `crop_pct` riportato (36% a 15°) |
+| `orientation` | 0 · 90 · 180 · 270 | Raddrizza | quarto di giro in senso orario, senza perdita: foto di lato o capovolta (solo il modello la vede) |
 | `sharpen` | 0–1 | Nitidezza | maschera di contrasto; amplifica bordi esistenti |
 | `recommendation` | apply · mild · keep_original | — | `mild` dimezza tutto, `keep_original` non tocca nulla |
 
@@ -76,4 +77,6 @@ delle schede; `judge` è sempre vuoto (campo storico).
   `unchanged_rate`, `fidelity_min`, `diagnosis {precision, recall, f1}` sulle foto etichettate;
   più `verdict` con la regola di decisione applicata.
 - `GET /runs/{id}/cards` → le schede cieche di un'esecuzione (immagini incluse).
+- `POST /turns` → la foto girata di 0, 90, 180 e 270 gradi in miniatura (512 px), per la domanda
+  di orientamento del flusso D2.
 - `GET /study` → id dello studio, quali sono pronti, tester finora.

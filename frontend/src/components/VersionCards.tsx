@@ -31,7 +31,7 @@ function StepRow({ step }: { step: Step }) {
     ? Object.entries(step.params)
         .filter(([k, v]) => v !== 0 && v !== 1 && k !== 'latency_ms' && k !== 'cost_usd' && v !== undefined)
         .map(([k, v]) =>
-          k === 'plan_adjusted' ? `piano adattato: ${v}` : k === 'crop_pct' ? `ritaglio ${Math.round(Number(v))}%` : `${k} ${typeof v === 'number' ? +v.toFixed(2) : v}`,
+          k === 'plan_adjusted' ? `piano adattato: ${v}` : k === 'crop_pct' ? `ritaglio ${Math.round(Number(v))}%` : k === 'orientation' ? `girata di ${v}°` : `${k} ${typeof v === 'number' ? +v.toFixed(2) : v}`,
         )
         .join(' · ')
     : ''

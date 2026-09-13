@@ -37,7 +37,7 @@
         60
       ],
       "parameters": {
-        "jsCode": "\n// State that travels through the four modules. `accepted` grows with every module\n// that passes its gate; `steps` records what happened to each one.\nconst j = $input.item.json;\nconst plan = { ...{\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0}, ...(j.plan || {}) };\nconst modules = [\"Colore\", \"Luce\", \"Pulizia\", \"Raddrizza\", \"Nitidezza\"];\nreturn { json: { input: j.input, save_as: j.save_as || null, plan, ai_reconstructed: false,\n  accepted: { recommendation: plan.recommendation || 'apply' },\n  steps: [{ module: 'Risoluzione', needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null },\n          ...modules.map(m => ({ module: m, needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null }))],\n  retry: {} } };\n",
+        "jsCode": "\n// State that travels through the four modules. `accepted` grows with every module\n// that passes its gate; `steps` records what happened to each one.\nconst j = $input.item.json;\nconst plan = { ...{\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0, \"orientation\": 0}, ...(j.plan || {}) };\nconst modules = [\"Colore\", \"Luce\", \"Pulizia\", \"Raddrizza\", \"Nitidezza\"];\nreturn { json: { input: j.input, save_as: j.save_as || null, plan, ai_reconstructed: false,\n  accepted: { recommendation: plan.recommendation || 'apply' },\n  steps: [{ module: 'Risoluzione', needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null },\n          ...modules.map(m => ({ module: m, needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null }))],\n  retry: {} } };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -725,7 +725,7 @@
           "conditions": [
             {
               "id": "c",
-              "leftValue": "={{ $json.plan.rotate_deg !== 0 }}",
+              "leftValue": "={{ $json.plan.rotate_deg !== 0 || ($json.plan.orientation || 0) !== 0 }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -755,7 +755,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { rotate_deg: $json.plan.rotate_deg }) }) }}"
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { rotate_deg: $json.plan.rotate_deg, orientation: $json.plan.orientation }) }) }}"
       },
       "retryOnFail": true,
       "maxTries": 8,
@@ -802,7 +802,7 @@
         20
       ],
       "parameters": {
-        "jsCode": "\n// Raddrizza passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg, crop_pct: r.crop_pct } });\nfor (const k of [\"rotate_deg\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "jsCode": "\n// Raddrizza passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg, orientation: r.params.orientation, crop_pct: r.crop_pct } });\nfor (const k of [\"rotate_deg\", \"orientation\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -815,7 +815,7 @@
         340
       ],
       "parameters": {
-        "jsCode": "\n// Raddrizza failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nconst key = \"Raddrizza\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"rotate_deg\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "jsCode": "\n// Raddrizza failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nconst key = \"Raddrizza\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"rotate_deg\", \"orientation\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg, orientation: r.params.orientation } });\n  s._again = false;\n}\nreturn { json: s };\n",
         "mode": "runOnceForEachItem"
       }
     },

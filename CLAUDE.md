@@ -31,7 +31,7 @@ n8n/          build_workflows.py genera: workflow-correct (Correggi, sub-workflo
               Correggi → record), workflow-choice (4 webhook), workflow-batch (dataset, stesse
               corsie, nessun giudice). I JSON non si editano a mano.
 prompts/      diagnosis.md (System, User, Review).
-dataset/raw/  24 foto vere + labels.csv (vocabolario: underexposed backlit color_cast noise tilt
+dataset/raw/  24 foto vere + labels.csv (vocabolario: underexposed overexposed backlit color_cast noise tilt rotated
               compressed low_resolution; ok). processed/ ignorata da git.
 experiments/  runs/<id>.json (versionati), judgments.csv, study-set.txt, gate-calibration.txt,
               scripts/calibrate_gate.py, scripts/export_snapshot.py.

@@ -251,6 +251,14 @@ def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
     return float(values[order][np.searchsorted(cum, cum[-1] / 2)])
 
 
+def turn(img: np.ndarray, orientation: int) -> np.ndarray:
+    """Lossless quarter turn, `orientation` degrees clockwise. No crop, no resampling:
+    the fix for a photo that arrived on its side or upside down."""
+    codes = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
+    code = codes.get(int(orientation) % 360)
+    return img if code is None else cv2.rotate(img, code)
+
+
 def rotate_and_crop(img: np.ndarray, deg: float) -> np.ndarray:
     """Rotate about the centre, then crop to the largest axis-aligned rectangle
     with no black borders. Deterministic, so it can be replayed on the original
@@ -303,7 +311,8 @@ def apply(img: np.ndarray, params: EnhanceParams) -> tuple[np.ndarray, EnhancePa
     # noise is compressed into a few levels, so denoising first removes almost
     # nothing and the gamma then amplifies what is left. v2 had it the other way
     # round, which is why brightened evening shots came out grainy.
-    out = apply_white_balance(img, resolved.white_balance)
+    out = turn(img, resolved.orientation)
+    out = apply_white_balance(out, resolved.white_balance)
     out = apply_gamma(out, resolved.gamma)
     out = apply_clahe(out, resolved.clahe_clip)
     out = apply_denoise(out, resolved.denoise)
@@ -315,7 +324,7 @@ def apply(img: np.ndarray, params: EnhanceParams) -> tuple[np.ndarray, EnhancePa
 def aligned_reference(original: np.ndarray, params: EnhanceParams) -> np.ndarray:
     """The original, geometrically transformed like the output. Straightening
     is allowed by policy, so the fidelity gate compares against this, not the raw input."""
-    return rotate_and_crop(original, params.rotate_deg)
+    return rotate_and_crop(turn(original, params.orientation), params.rotate_deg)
 
 
 # -------------------------------------------------------------------- analysis
@@ -365,7 +374,7 @@ def predicted_noise(stats: ImageStats, gamma: float, shadow_level: float = 0.12)
 
 # Diagnosis vocabulary, shared by the heuristic diagnoser, the vision prompt and
 # dataset/raw/labels.csv (which uses `tungsten_cast` for `color_cast`; aggregate.py maps it).
-DEFECTS = ("underexposed", "backlit", "color_cast", "noise", "tilt", "compressed", "low_resolution")
+DEFECTS = ("underexposed", "overexposed", "backlit", "color_cast", "noise", "tilt", "rotated", "compressed", "low_resolution")
 
 
 def heuristic_defects(stats: ImageStats, params: EnhanceParams) -> list[str]:
@@ -376,6 +385,8 @@ def heuristic_defects(stats: ImageStats, params: EnhanceParams) -> list[str]:
     found = []
     if params.gamma < 0.9:
         found.append("underexposed")
+    if params.gamma > 1.1:
+        found.append("overexposed")
     if params.white_balance > 0:
         found.append("color_cast")
     if params.denoise > 0 and stats.noise_estimate >= 2.0:
@@ -446,4 +457,5 @@ def conservative(params: EnhanceParams) -> EnhanceParams:
         denoise=params.denoise // 2,
         rotate_deg=params.rotate_deg / 2,
         sharpen=params.sharpen / 2,
+        orientation=params.orientation,  # a quarter turn is right or wrong, never "milder"
     )

@@ -39,7 +39,7 @@ MAX_GATE_REJECTED = 0.10
 MAX_ERRORS = 0.10
 DEFECT_ALIASES = {"tungsten_cast": "color_cast"}  # labels.csv vocabulary -> diagnosis vocabulary
 EFFECTIVE_MIN_QUALITY = 4  # "output efficace": rated good or better, and not seen as altered
-DIAG_SET = {"underexposed", "backlit", "color_cast", "noise", "tilt", "low_resolution"}
+DIAG_SET = {"underexposed", "overexposed", "backlit", "color_cast", "noise", "tilt", "rotated", "low_resolution"}
 
 
 def _root() -> Path:
