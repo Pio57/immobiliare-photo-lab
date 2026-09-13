@@ -157,7 +157,7 @@ export function EsperimentoView() {
                   <td className="px-4 py-3 tabular-nums">{pct(r.keep_original_rate + r.unchanged_rate)}</td>
                   {labelled && (
                     <td className="px-4 py-3 text-xs tabular-nums">
-                      {r.diagnosis.n_labelled && r.diagnosis.recall !== null
+                      {r.diagnosis.n_labelled && r.diagnosis.precision !== null
                         ? `${n(r.diagnosis.precision, 2)} / ${n(r.diagnosis.recall, 2)} / ${n(r.diagnosis.f1, 2)} (n=${r.diagnosis.n_labelled})`
                         : 'non diagnostica'}
                     </td>

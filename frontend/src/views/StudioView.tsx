@@ -32,9 +32,12 @@ export function StudioView() {
   const [state, setState] = useState<State>({ kind: 'loading' })
 
   useEffect(() => {
+    // ?tester=XX skips the intro (used for screenshots and for handing a tester a direct link)
+    const preset = new URLSearchParams(window.location.search).get('tester')?.trim().slice(0, 12) ?? ''
     fetchStudy()
-      .then((info) => setState({ kind: 'intro', info, tester: '' }))
+      .then((info) => (preset ? void load(info, preset, 0, 0) : setState({ kind: 'intro', info, tester: '' })))
       .catch((err) => setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const load = async (info: StudyInfo, tester: string, index: number, done: number) => {
