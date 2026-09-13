@@ -1,5 +1,7 @@
 # immobiliare-photo-lab
 
+*Nota di accompagnamento al case study — Pio Santosuosso, settembre 2026*
+
 Questa è la nota di accompagnamento del prototipo che ho costruito per il case study
 *Product Builder, Agentic AI Products*. Il prodotto è volutamente piccolo: la foto di copertina
 di un annuncio, corretta con un click, senza mai cambiare quello che c'è nella stanza. L'ho
@@ -45,6 +47,8 @@ bloccante contro l'originale, così che non sia l'intelligenza artificiale a val
 
 ## 2. Come strutturo il workflow e i flussi da testare
 
+![Il workflow del prodotto in n8n: ingresso, tre corsie (D1 regole, D2 Haiku con verifica, D3 generativo), record e salvataggio.](../../n8n/screenshots/product.png)
+
 Il workflow ha una forma sola: la foto viene misurata, qualcuno la diagnostica e produce un
 piano, il piano passa dal modulo Correggi, e ne esce una versione corretta insieme a un registro
 di quello che è successo. Correggi è un sub-workflow n8n con un modulo per difetto, eseguiti in
@@ -69,6 +73,8 @@ ogni versione porta con sé il proprio registro, cioè i difetti trovati, il pia
 eseguiti o saltati, la fedeltà, il costo, il tempo e le eventuali correzioni che il sistema ha
 imposto al piano del modello.
 
+![Il sub-workflow Correggi: sei corsie, una per modulo, con controllo di fedeltà e tentativo prudente per ciascuna.](../../n8n/screenshots/correct.png)
+
 I risultati vengono raccolti dal prodotto stesso. Nella vista Prova le tre versioni arrivano in
 ordine casuale e senza nome; l'agente sceglie quella che userebbe, oppure tiene l'originale, e
 solo dopo scopre quale metodo ha prodotto cosa. La vista Studio ripete lo stesso esercizio in
@@ -80,6 +86,8 @@ valutatore umano con un giudice automatico.
 
 Il metodo migliore non viene scelto guardando le foto: viene scelto con una regola scritta prima
 di vedere i dati, che descrivo nel punto seguente.
+
+![La vista Studio: l'originale in alto, due versioni sotto, giudizio con le frecce.](figures/site-studio.png)
 
 ## 3. Quali parametri uso per valutare che un metodo è migliore dell'altro
 
@@ -111,6 +119,8 @@ dieci nello scontro diretto, quindi il terzo passo indicherebbe le regole. Con u
 però, la conclusione corretta è che servono altri giudizi, non che abbiamo scelto: ed è
 esattamente quello che il tabellone dice.
 
+![La vista Esperimento: decisione, regola applicata, preferenza nel test cieco e gli altri parametri.](figures/site-esperimento.png)
+
 ## 4. Come misuro gli elementi qualitativi
 
 "Foto migliore" non ha un numero, ma ha una preferenza che si può misurare se la si raccoglie
@@ -130,6 +140,8 @@ che dichiaro. Per scalare oltre i valutatori umani, il workflow batch prevede un
 automatico a coppie, con tre ripetizioni e voti non unanimi contati come pareggio; ma un giudice
 automatico va validato contro i giudizi umani prima di sostituirli, e questo passo nella
 simulazione non l'ho ancora fatto.
+
+![La vista Prova, il prodotto: si carica una foto e si scelgono le versioni alla cieca.](figures/site-prova.png)
 
 ## Prototipo, strumenti, cosa è reale e cosa no
 
@@ -180,7 +192,16 @@ cambia un prompt o l'URL del tunnel, si rigenera e si reimporta. Il contratto da
 descritto in `docs/contracts.md`; le sue due implementazioni sono `cv-service/app/schemas.py` e
 `frontend/src/types.ts`.
 
-## Come si avvia
+## Dove gira
+
+Il prototipo è pubblicato e funziona senza nulla di acceso sul computer di chi lo ha costruito.
+Il sito è su Vercel (https://immobiliare-photo-lab.vercel.app) e si ricostruisce da solo a ogni
+push. n8n è self-hosted su un VPS Hostinger, in Docker, raggiungibile in https; cv-service gira
+sullo stesso server come container sulla rete interna di n8n, con `dataset/` ed `experiments/`
+montati dal repository clonato sul server, e si aggiorna con uno script (`deploy/update.sh`).
+Il codice è su GitHub: https://github.com/Pio57/immobiliare-photo-lab.
+
+## Come si avvia in locale
 
 Servono Python 3.12, Node 20 o superiore, un account n8n Cloud (oppure n8n in locale con il
 `docker-compose.yml` incluso) e ngrok.
@@ -278,11 +299,15 @@ scelte. `Record D3` scrive il record con le sei righe misurate.
 Il nodo `Attendi le 3 versioni` aspetta le tre corsie, `Record` fissa un ordine casuale delle
 versioni e `Salva run` scrive tutto in `experiments/runs`.
 
+![I workflow Scelte (quattro webhook) e Batch (dataset con giudice automatico opzionale).](../../n8n/screenshots/choice.png)
+
 **Scelte** (`workflow-choice.json`, dodici nodi) espone quattro webhook: `photo-lab-choice`
 registra un giudizio in `experiments/choices.csv`; `photo-lab-result` restituisce le tre
 versioni di un'esecuzione e risponde che non è pronta finché il record non esiste;
 `photo-lab-study` restituisce l'elenco delle foto dello studio e il loro stato;
 `photo-lab-summary` restituisce il tabellone con la regola di decisione già applicata.
+
+![Il workflow Batch: le stesse tre corsie su tutto il dataset, una foto alla volta.](../../n8n/screenshots/batch.png)
 
 **Batch** (`workflow-batch.json`, quarantacinque nodi, avvio manuale) ripete le tre corsie del
 prodotto sul dataset, una foto alla volta, con un nodo `Config` che elenca le foto dello
