@@ -30,7 +30,7 @@ I flussi vivono in quattro workflow n8n che si richiamano tra loro:
 
 ![Il workflow Prodotto in n8n: la foto entra, passa in parallelo dalle tre corsie D1, D2 e D3, e ne esce un record con le tre versioni.](../../n8n/screenshots/product.png)
 
-Gli output sono quindi, per ogni foto, tre versioni con un registro di difetti trovati, interventi applicati o scartati, fedeltà, costo e tempo. I risultati li raccolgo con una sperimentazione cieca: un pool di valutatori che, nella vista Studio, giudicano le tre versioni di ogni foto senza sapere quale flusso le ha prodotte, rispondendo alle domande descritte nel punto 4. La stessa scelta della foto migliore avviene nella vista Prova sulla propria foto appena caricata. Ogni risposta viene registrata e la vista Esperimento le aggrega in un tabellone. Con quali parametri leggere quei dati per scegliere il metodo migliore lo descrivo nel punto seguente.
+Gli output sono quindi, per ogni foto, tre versioni con un registro di difetti trovati, interventi applicati o scartati, fedeltà, costo e tempo. I risultati li raccolgo con una sperimentazione cieca: un pool di valutatori che, nella vista Studio, giudicano le tre versioni di ogni foto senza sapere quale flusso le ha prodotte, rispondendo alle domande descritte nel punto 4. Ogni risposta viene registrata e la vista Esperimento le aggrega in un tabellone. Con quali parametri leggere quei dati per scegliere il metodo migliore lo descrivo nel punto seguente.
 
 ## 3. Quali parametri uso per valutare che un metodo è migliore dell'altro
 
@@ -61,7 +61,7 @@ Il prototipo implementa già la prima fase: la vista Studio pone le tre domande 
 
 ## Prototipo, strumenti e limiti
 
-**Come testare il prototipo.** Il prototipo funzionante è raggiungibile dal link in testata. Due modalità per provarlo: nella vista *Prova* si carica una foto scattata da sé (magari buia o un po' storta) e si vede dal vivo come si comportano in parallelo i tre flussi D1, D2 e D3; nella vista *Studio* si scorrono le 24 foto precaricate rispondendo alle tre domande del test cieco, senza sapere quale workflow ha generato cosa.
+**Come testare il prototipo.** Il prototipo funzionante è raggiungibile dal link in testata. Due modalità per provarlo: nella vista *Prova* si carica una foto scattata da sé (magari buia o un po' storta) e si vedono affiancati i tre flussi D1, D2 e D3, ciascuno con la sua scheda: cosa ha visto, quali moduli ha eseguito, costo e tempo; nella vista *Studio* si scorrono le 24 foto precaricate rispondendo alle tre domande del test cieco, senza sapere quale workflow ha generato cosa.
 
 **Architettura e strumenti.** Il sito (React, su Vercel) comunica con quattro workflow n8n self-hosted. Le correzioni sulle immagini, il controllo di fedeltà e i dati sono gestiti da un servizio Python con OpenCV. I modelli impiegati sono Claude Haiku per la diagnosi e la verifica, SDXL con ControlNet e Real-ESRGAN per la generazione, richiamati tramite le API di Replicate. L'intero sviluppo è stato supportato da Claude Code.
 

@@ -14,7 +14,7 @@ export const VARIANT_LABEL: Record<VariantId, string> = {
 export const VARIANT_SUBTITLE: Record<VariantId, string> = {
   D1: 'regole sui numeri misurati decidono moduli e valori; nessun modello, costo 0',
   D2: 'il modello diagnostica, sceglie i valori, poi guarda il risultato e se serve corregge il piano',
-  D3: 'SDXL + ControlNet ridisegna i pixel in un colpo solo; stesso gate, nessun modulo',
+  D3: 'SDXL + ControlNet ridisegna i pixel in un colpo solo; stesso controllo di fedeltà, nessun modulo',
 }
 
 /** Defect vocabulary shared by every diagnoser and by the hand labels. */

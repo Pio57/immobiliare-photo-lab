@@ -3,16 +3,18 @@ import { useEffect, useState } from 'react'
 import { Dropzone } from '../components/Dropzone'
 import { Lightbox } from '../components/Lightbox'
 import { Button, Card, SectionTitle, secs, usd } from '../components/ui'
-import { VersionStack, label } from '../components/VersionCards'
-import { isLiveConfigured, pendingUpload, runProduct, sendJudgment, waitForResult } from '../lib/api'
-import { VARIANT_LABEL, type ProductResponse, type VariantId, type VersionCard } from '../types'
+import { VersionGrid, label } from '../components/VersionCards'
+import { isLiveConfigured, pendingUpload, runProduct, waitForResult } from '../lib/api'
+import { VARIANT_LABEL, type ProductResponse, type VersionCard } from '../types'
 
 type State =
   | { kind: 'idle' }
   | { kind: 'running'; preview: string; elapsedMs: number }
-  | { kind: 'done'; preview: string; response: ProductResponse; chosen: VariantId | null | undefined; saved: boolean }
+  | { kind: 'done'; preview: string; response: ProductResponse }
   | { kind: 'error'; message: string }
 
+/** The product: one photo in, the three methods side by side with their sheets.
+ *  Nothing to choose here; the preference is measured in the Studio view. */
 export function ProvaView() {
   const [state, setState] = useState<State>({ kind: 'idle' })
   const [zoom, setZoom] = useState<VersionCard | null>(null)
@@ -23,7 +25,7 @@ export function ProvaView() {
     if (!pending || state.kind !== 'idle') return
     setState({ kind: 'running', preview: '', elapsedMs: Date.now() - pending.t0 })
     waitForResult(pending.image_id, (elapsedMs) => setState((s) => (s.kind === 'running' ? { ...s, elapsedMs } : s)))
-      .then((response) => setState({ kind: 'done', preview: response.original ?? '', response, chosen: undefined, saved: false }))
+      .then((response) => setState({ kind: 'done', preview: response.original ?? '', response }))
       .catch((err) => setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -32,31 +34,10 @@ export function ProvaView() {
     const preview = URL.createObjectURL(file)
     setState({ kind: 'running', preview, elapsedMs: 0 })
     try {
-      const response = await runProduct(file, (elapsedMs) =>
-        setState((s) => (s.kind === 'running' ? { ...s, elapsedMs } : s)),
-      )
-      setState({ kind: 'done', preview: response.original ?? preview, response, chosen: undefined, saved: false })
+      const response = await runProduct(file, (elapsedMs) => setState((s) => (s.kind === 'running' ? { ...s, elapsedMs } : s)))
+      setState({ kind: 'done', preview: response.original ?? preview, response })
     } catch (err) {
       setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
-    }
-  }
-
-  const choose = async (chosen: VariantId | null) => {
-    if (state.kind !== 'done') return
-    setState({ ...state, chosen })
-    try {
-      await sendJudgment({
-        image_id: state.response.image_id,
-        task: 'best',
-        variant: chosen ?? '',
-        answer: '',
-        shown: state.response.cards.filter((c) => c.changed && c.output && c.status === 'accepted').map((c) => c.variant),
-        order: state.response.order,
-        tester: '',
-      })
-      setState((s) => (s.kind === 'done' ? { ...s, chosen, saved: true } : s))
-    } catch {
-      /* the choice is still shown; only the tally misses it */
     }
   }
 
@@ -65,8 +46,7 @@ export function ProvaView() {
       <Card className="p-5 text-sm">
         <p className="font-medium">Vista Prova disabilitata</p>
         <p className="mt-1 text-muted">
-          La Prova ha bisogno del backend (n8n + cv-service) acceso. Studio ed Esperimento funzionano comunque sulla
-          copia statica dei risultati.
+          La Prova ha bisogno del backend (n8n + cv-service) acceso. Studio ed Esperimento funzionano comunque sulla copia statica dei risultati.
         </p>
       </Card>
     )
@@ -79,14 +59,11 @@ export function ProvaView() {
           <div className="mb-2 text-xs font-semibold text-brand-500">Prima di pubblicare l&apos;annuncio</div>
           <h2 className="text-[36px] leading-[1.1] font-bold tracking-tight">Le foto giuste per l&apos;annuncio, con un click.</h2>
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-neutral-600">
-            Carica la foto scattata col telefono. Tre versioni corrette da tre metodi diversi (regole, modello con
-            verifica, generativo), tutte passate dallo stesso controllo di fedeltà. Scegli la migliore: la tua scelta è
-            la misura.
+            Carica una foto scattata col telefono. Tre metodi la correggono in parallelo (regole, modello con verifica,
+            generativo), con lo stesso controllo di fedeltà. Per ciascuno vedi il risultato, cosa ha visto e cosa ha fatto.
           </p>
         </div>
-        {state.kind === 'error' && (
-          <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-900">{state.message}</Card>
-        )}
+        {state.kind === 'error' && <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-900">{state.message}</Card>}
         <Dropzone onFile={onFile} />
       </div>
     )
@@ -109,7 +86,7 @@ export function ProvaView() {
             </p>
           </div>
         </div>
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-5 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="skeleton aspect-[3/4] rounded-lg" />
           ))}
@@ -119,18 +96,16 @@ export function ProvaView() {
   }
 
   const r = state.response
-  const revealed = state.chosen !== undefined
-  const chosenCard = r.cards.find((c) => c.variant === state.chosen)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {zoom && zoom.output && (
         <Lightbox
-          title={revealed ? VARIANT_LABEL[zoom.variant] : `Versione ${zoom.blind_id.slice(1)}`}
-          subtitle={zoom.steps.filter((s) => s.applied).map((s) => s.module).join(' + ') || 'nessun modulo'}
+          title={VARIANT_LABEL[zoom.variant]}
+          subtitle={zoom.steps.filter((s) => s.applied).map((s) => s.module).join(' + ') || (zoom.measured_changes ? 'immagine rigenerata' : 'nessun modulo')}
           before={state.preview}
           after={zoom.output}
-          afterLabel={zoom.blind_id}
+          afterLabel={VARIANT_LABEL[zoom.variant].split(' · ')[1]}
           onClose={() => setZoom(null)}
         />
       )}
@@ -149,40 +124,18 @@ export function ProvaView() {
 
       <section>
         <SectionTitle
-          eyebrow={revealed ? 'Scelta registrata' : 'Tre versioni, alla cieca'}
-          title={
-            !revealed
-              ? 'Quale useresti come copertina?'
-              : state.chosen === null
-                ? 'Tieni l’originale'
-                : `Hai scelto ${chosenCard ? VARIANT_LABEL[chosenCard.variant] : ''}`
-          }
-          hint={
-            !revealed
-              ? 'Stessa foto, tre metodi diversi, stesso controllo di fedeltà. I nomi compaiono dopo la scelta, per non farsi influenzare.'
-              : state.saved
-                ? 'La scelta è nei risultati (vista Esperimento). I nomi dei metodi sono ora visibili.'
-                : 'Scelta registrata localmente.'
-          }
+          eyebrow="Stessa foto, tre metodi"
+          title="Cosa ha fatto ogni metodo"
+          hint="Trascina la maniglia su ogni immagine: a sinistra l’originale, a destra la versione. Sotto, la scheda: come decide il metodo, cosa ha visto, quali moduli ha eseguito e con quali valori, costo e tempo."
           right={
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setState({ kind: 'idle' })}>
-                Un&apos;altra foto
-              </Button>
-            </div>
+            <Button variant="ghost" onClick={() => setState({ kind: 'idle' })}>
+              Un&apos;altra foto
+            </Button>
           }
         />
-        <VersionStack
-          cards={r.cards}
-          original={state.preview}
-          revealed={revealed}
-          chosen={state.chosen}
-          onChoose={!revealed ? (v) => void choose(v) : undefined}
-          onKeep={!revealed ? () => void choose(null) : undefined}
-        />
+        <VersionGrid cards={r.cards} original={state.preview} onZoom={setZoom} />
         <p className="mt-3 text-xs text-muted tabular-nums">
-          Risposta in {secs(r.latency_ms)} · costo totale {usd(r.cards.reduce((a, c) => a + c.cost_usd, 0))} per le
-          tre versioni.
+          Risposta in {secs(r.latency_ms)} · costo totale {usd(r.cards.reduce((a, c) => a + c.cost_usd, 0))} per le tre versioni.
         </p>
       </section>
     </div>

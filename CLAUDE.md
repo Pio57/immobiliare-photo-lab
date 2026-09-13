@@ -11,14 +11,15 @@ giudicato su **come si misura**, non su quanto è bella la foto dopo. README = a
   super-risoluzione etichettata sotto 1000 px. Vietato: sostituzione cielo, rimozione/aggiunta
   oggetti, ampliamento stanze, qualsiasi intervento su crepe/muffa.
 - Controllo di fedeltà deterministico e **bloccante**, per modulo: non è l'AI a valutare se stessa.
-- Cecità: nella Prova nomi e dettagli compaiono solo dopo la scelta; nello Studio mai (nemmeno il
-  gate). Il gate vive nella regola di decisione, non nel giudizio del tester.
+- Cecità nello Studio: mai nomi, mai il verdetto del gate. Il gate vive nella regola di decisione
+  (tabellone), non nel giudizio del tester. La Prova è trasparente: tre metodi affiancati con nome
+  e scheda, nessuna scelta, nessun verdetto del gate in evidenza (solo il punteggio di fedeltà).
 - Le chiavi non entrano mai nel repo né nel browser (le chiamate ai modelli partono da n8n).
 
 ## Architettura
 ```
 frontend/     Vite + React 19 + TS + Tailwind 4, palette immobiliare.it (blu #0074c1, grigi
-              freddi). Prova (prodotto, resta montata), Studio (test cieco: per foto realismo
+              freddi). Prova (prodotto: tre colonne con scheda, resta montata), Studio (test cieco: per foto realismo
               sì/no, qualità 1-5, foto migliore), Esperimento (tabellone). Fallback su
               public/snapshot/ se il backend non risponde.
 cv-service/   FastAPI + OpenCV. pipeline.py (WB → livelli+gamma → CLAHE → denoise → rotazione →
@@ -52,7 +53,7 @@ docs/         contracts.md, gate-calibration.md, report/nota.md.
   passano (crepe sottili). Non reintrodurre SSIM/Canny senza rifare il banco.
 - **Studio = fase 1 della nota**: per ogni foto, per ogni versione (ordine casuale) realismo
   (S/N) e qualità (1-5), poi foto migliore (1/2/3, 0 = originale). Una riga per risposta in
-  `judgments.csv` (`task` realism|quality|best). La Prova registra `best` con tester vuoto.
+  `judgments.csv` (`task` realism|quality|best). La Prova non registra giudizi.
   Il tabellone calcola tasso di alterazione, MOS, quota di vittorie (Wilson 95%), output efficace
   (etichette manuali; `compressed` è condizione dell'input, non difetto). La regola esclude
   errori >10%, gate >10%, alterazione >10% (con ≥10 risposte); decide `best` con ≥30 giudizi.
