@@ -4,7 +4,7 @@ import { Dropzone } from '../components/Dropzone'
 import { Lightbox } from '../components/Lightbox'
 import { Button, Card, SectionTitle, secs, usd } from '../components/ui'
 import { VersionStack, label } from '../components/VersionCards'
-import { isLiveConfigured, pendingUpload, runProduct, sendChoice, waitForResult } from '../lib/api'
+import { isLiveConfigured, pendingUpload, runProduct, sendJudgment, waitForResult } from '../lib/api'
 import { VARIANT_LABEL, type ProductResponse, type VariantId, type VersionCard } from '../types'
 
 type State =
@@ -45,11 +45,14 @@ export function ProvaView() {
     if (state.kind !== 'done') return
     setState({ ...state, chosen })
     try {
-      await sendChoice({
+      await sendJudgment({
         image_id: state.response.image_id,
-        chosen,
+        task: 'best',
+        variant: chosen ?? '',
+        answer: '',
         shown: state.response.cards.filter((c) => c.changed && c.output && c.status === 'accepted').map((c) => c.variant),
         order: state.response.order,
+        tester: '',
       })
       setState((s) => (s.kind === 'done' ? { ...s, chosen, saved: true } : s))
     } catch {
@@ -73,10 +76,8 @@ export function ProvaView() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 pt-6">
         <div className="text-center">
-          <div className="mb-3 text-[11px] font-semibold tracking-[0.14em] text-brand-500 uppercase">
-            Prima di pubblicare l&apos;annuncio
-          </div>
-          <h2 className="font-display text-5xl leading-[1.05] font-medium">La copertina giusta, con un click.</h2>
+          <div className="mb-2 text-xs font-semibold text-brand-500">Prima di pubblicare l&apos;annuncio</div>
+          <h2 className="text-[36px] leading-[1.1] font-bold tracking-tight">Le foto giuste per l&apos;annuncio, con un click.</h2>
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-neutral-600">
             Carica la foto scattata col telefono. Tre versioni corrette da tre metodi diversi (regole, modello con
             verifica, generativo), tutte passate dallo stesso controllo di fedeltà. Scegli la migliore: la tua scelta è
@@ -96,21 +97,21 @@ export function ProvaView() {
       <div className="space-y-5">
         <div className="flex items-center gap-5">
           {state.preview ? (
-            <img src={state.preview} alt="Originale" className="h-24 w-32 rounded-lg object-cover" />
+            <img src={state.preview} alt="Originale" className="h-24 w-32 rounded-md object-cover" />
           ) : (
-            <div className="skeleton h-24 w-32 rounded-lg" />
+            <div className="skeleton h-24 w-32 rounded-md" />
           )}
           <div>
             <p className="font-medium">Tre correzioni in corso… {Math.round(state.elapsedMs / 1000)} s</p>
             <p className="text-sm text-muted">
-              Regole (~15 s), Haiku con verifica (~25 s), generativo (30 s, fino a 2 min se il modello è freddo). Stesso
-              gate per tutte.
+              Regole (~15 s), modello con verifica (~25 s), generativo (30 s, fino a 2 min se il modello è freddo). Stesso
+              controllo di fedeltà per tutte.
             </p>
           </div>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton aspect-[3/4] rounded-2xl" />
+            <div key={i} className="skeleton aspect-[3/4] rounded-lg" />
           ))}
         </div>
       </div>
@@ -135,7 +136,7 @@ export function ProvaView() {
       )}
 
       {r.input_warnings.some((w) => !w.startsWith('letterbox')) && (
-        <Card className="border-amber-300 bg-amber-50 p-4 text-sm">
+        <Card className="border-amber-200 bg-amber-50 p-4 text-sm">
           <b>Foto a bassa qualità in ingresso</b> (
           {r.input_warnings
             .filter((w) => !w.startsWith('letterbox'))
@@ -158,9 +159,9 @@ export function ProvaView() {
           }
           hint={
             !revealed
-              ? 'Stessa foto, tre metodi diversi, stesso gate. I nomi compaiono dopo la scelta, per non farsi influenzare.'
+              ? 'Stessa foto, tre metodi diversi, stesso controllo di fedeltà. I nomi compaiono dopo la scelta, per non farsi influenzare.'
               : state.saved
-                ? 'La scelta è nel tabellone (vista Esperimento). I nomi dei workflow sono ora visibili.'
+                ? 'La scelta è nei risultati (vista Esperimento). I nomi dei metodi sono ora visibili.'
                 : 'Scelta registrata localmente.'
           }
           right={

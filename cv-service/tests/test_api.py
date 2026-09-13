@@ -70,7 +70,7 @@ def test_enhance_by_image_id_and_save(tmp_path, monkeypatch, room):
 
 
 def test_choices_summary_and_cards(tmp_path, monkeypatch):
-    """The experiment inside the product: a saved run + a blind choice -> the tally."""
+    """The experiment inside the product: a saved run + blind judgements -> the tally."""
     import json
 
     from app.config import settings
@@ -89,14 +89,20 @@ def test_choices_summary_and_cards(tmp_path, monkeypatch):
     cards = client.get("/runs/img_001/cards").json()
     assert cards["ready"] and [c["blind_id"] for c in cards["cards"]] == ["V1", "V2", "V3"]
     assert [c["variant"] for c in cards["cards"]] == ["D2", "D1", "D3"]
-    assert client.post("/choices", json={"image_id": "img_001", "chosen": "D2", "shown": ["D1", "D2"], "order": ["D2", "D1", "D3"], "tester": "T"}).json()["choices"] == 1
+    post = lambda **j: client.post("/choices", json={"image_id": "img_001", "tester": "T", **j})
+    assert post(task="realism", variant="D3", answer="yes").json()["judgments"] == 1
+    assert post(task="quality", variant="D2", answer="4").status_code == 200
+    assert post(task="quality", variant="D2", answer="9").status_code == 422
+    assert post(task="best", variant="D2", shown=["D1", "D2", "D3"], order=["D2", "D1", "D3"]).status_code == 200
     s = client.get("/summary").json()
     d2 = next(r for r in s["variants"] if r["variant"] == "D2")
-    assert s["choices"] == 1 and d2["chosen"] == 1 and d2["shown"] == 1
+    assert s["choices"] == 1 and s["judgments"] == 3 and d2["chosen"] == 1 and d2["shown"] == 1 and d2["mos"] == 4
     assert d2["diagnosis"]["precision"] == 0.5 and d2["diagnosis"]["recall"] == 1.0  # tilt right, noise invented
+    assert d2["effective_rate"] == 1.0  # tilt labelled, Raddrizza applied
     d3 = next(r for r in s["variants"] if r["variant"] == "D3")
-    assert d3["gate_rejected_rate"] == 1.0 and any(e["variant"] == "D3" for e in s["verdict"]["excluded"])
-    assert client.get("/study").json()["testers"] == {"T": 1}
+    assert d3["gate_rejected_rate"] == 1.0 and d3["alteration_rate"] == 1.0 and d3["effective_rate"] == 0.0
+    assert any(e["variant"] == "D3" for e in s["verdict"]["excluded"])
+    assert client.get("/study").json()["testers"] == {"T": 3}
 
 
 def test_prepare_bounds_size_and_measures(room):

@@ -735,14 +735,14 @@ return { json: { image_id: prep.image_id, source: 'live', judge: [], order,
 
 
 def build_choice() -> dict:
-    """Two tiny webhooks: record the agent's blind choice, and serve the tally."""
+    """Tiny webhooks: record one blind judgement, serve the tally, list the study."""
     cv_url = read_env("CV_SERVICE_PUBLIC_URL", "https://CHANGE-ME.ngrok-free.app")
     cors = {"responseHeaders": {"entries": [{"name": "Access-Control-Allow-Origin", "value": "*"}]}}
     nodes = [
-        sticky("Scelta", "La vista Prova manda { image_id, chosen, shown, order } dopo che l'agente ha scelto alla cieca. cv-service la accoda a experiments/choices.csv.", -120, 100, 900, 260, 5),
+        sticky("Giudizio", "Le viste Prova e Studio mandano una risposta alla volta { image_id, task: realism|quality|best, variant, answer, shown, order, tester }. cv-service la accoda a experiments/judgments.csv.", -120, 100, 900, 260, 5),
         sticky("Tabellone", "La vista Esperimento chiede il riepilogo: per ogni workflow quante volte scelto su quante mostrate (intervallo di Wilson), costo, latenza, errori, bocciature del gate, guardie. E la regola di decisione applicata.", -120, 440, 900, 260, 3),
         node("Webhook scelta", "n8n-nodes-base.webhook", 2, {"httpMethod": "POST", "path": "photo-lab-choice", "responseMode": "responseNode", "options": {"allowedOrigins": "*"}}, -40, 220),
-        http_cv("Registra scelta", f"{cv_url}/choices", "={{ JSON.stringify($json.body) }}", 200, 220),
+        http_cv("Registra giudizio", f"{cv_url}/choices", "={{ JSON.stringify($json.body) }}", 200, 220),
         node("Rispondi scelta", "n8n-nodes-base.respondToWebhook", 1.1, {"respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": cors}, 440, 220),
         node("Webhook tabellone", "n8n-nodes-base.webhook", 2, {"httpMethod": "GET", "path": "photo-lab-summary", "responseMode": "responseNode", "options": {"allowedOrigins": "*"}}, -40, 560),
         http_cv("Riepilogo", f"{cv_url}/summary", None, 200, 560, method="GET"),

@@ -14,7 +14,7 @@ export function Chip({ children, tone = 'neutral' }: { children: React.ReactNode
     brand: 'bg-brand-50 text-brand-600 ring-brand-500/25',
   }[tone]
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${style}`}>
+    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${style}`}>
       {children}
     </span>
   )
@@ -44,7 +44,7 @@ function StepRow({ step }: { step: Step }) {
         {state === 'idle'
           ? 'non necessario'
           : state === 'rejected'
-            ? `bocciato dal gate${params ? ` (${params})` : ''}`
+            ? `fermato dal controllo di fedeltà${params ? ` (${params})` : ''}`
             : params || 'applicato'}
         {step.retried && state === 'applied' && ' · 2º tentativo'}
       </span>
@@ -91,19 +91,19 @@ export function VersionStack({
         return (
           <div key={card.blind_id} className="grid gap-4 lg:grid-cols-[minmax(0,2.4fr)_minmax(280px,1fr)]">
             <Card className={`relative overflow-hidden ${isChosen ? 'ring-2 ring-brand-500' : ''} ${rejected ? 'ring-2 ring-amber-500' : ''}`}>
-              <div className="absolute top-2 left-2 z-10 rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
+              <div className="absolute top-2 left-2 z-10 rounded bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                 {name(card)}
               </div>
               {rejected && (
-                <div className="absolute top-2 right-2 z-10 rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-white shadow">
-                  Scartata dal gate · fedeltà {card.fidelity?.score.toFixed(3)} · blocco peggiore{' '}
+                <div className="absolute top-2 right-2 z-10 rounded bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  Fermata dal controllo di fedeltà · {card.fidelity?.score.toFixed(3)} · blocco peggiore{' '}
                   {card.fidelity?.structure_local_min.toFixed(2)}
                 </div>
               )}
               {card.output && card.changed ? (
                 <CompareSlider before={original} after={card.output} afterLabel={card.blind_id} />
               ) : (
-                <div className="flex aspect-[4/3] items-center justify-center bg-neutral-100 text-sm text-muted">
+                <div className="flex aspect-[4/3] items-center justify-center bg-neutral-50 text-sm text-muted">
                   {card.error ? 'errore del modello' : 'lasciata com’è'}
                 </div>
               )}
@@ -112,7 +112,7 @@ export function VersionStack({
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex items-baseline justify-between gap-3">
                 <div>
-                  <div className="font-display text-xl leading-tight">{name(card)}</div>
+                  <div className="text-lg leading-tight font-semibold">{name(card)}</div>
                   {revealed && <div className="mt-0.5 text-xs text-muted">{VARIANT_SUBTITLE[card.variant]}</div>}
                 </div>
                 {revealed && (
@@ -186,7 +186,7 @@ export function VersionStack({
               )}
               {rejected && (
                 <p className="text-xs leading-relaxed text-amber-800">
-                  Bocciata dal gate di fedeltà:{' '}
+                  Fermata dal controllo di fedeltà:{' '}
                   {card.fidelity && card.fidelity.score < card.fidelity.threshold
                     ? `troppo diversa dall’originale nel complesso (${card.fidelity.score.toFixed(3)} < ${card.fidelity.threshold})`
                     : `almeno una zona è stata ridisegnata (blocco peggiore ${card.fidelity?.structure_local_min.toFixed(2)} < ${card.fidelity?.local_floor})`}

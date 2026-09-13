@@ -1,4 +1,4 @@
-import type { Choice, ProductResponse, StudyInfo, Summary } from '../types'
+import type { Judgment, ProductResponse, StudyInfo, Summary } from '../types'
 
 /** One base URL: the product webhook. The other webhooks of the n8n "scelte"
  *  workflow live next to it, so they are derived, not configured. */
@@ -92,15 +92,15 @@ export function pendingUpload(): { image_id: string; t0: number } | null {
   }
 }
 
-/** The agent's blind choice: the one measurement the experiment is built on.
- *  Returns false when it could not be recorded (snapshot mode). */
-export async function sendChoice(choice: Choice): Promise<boolean> {
+/** One blind judgement (Studio) or the agent's own choice (Prova): the measurements
+ *  the experiment is built on. Returns false when it could not be recorded (snapshot mode). */
+export async function sendJudgment(j: Judgment): Promise<boolean> {
   if (!PRODUCT_URL || usingSnapshot) return false
   try {
     const res = await fetch(`${base()}photo-lab-choice`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(choice),
+      body: JSON.stringify(j),
     })
     return res.ok
   } catch {

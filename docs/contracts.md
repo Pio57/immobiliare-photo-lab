@@ -63,12 +63,16 @@ Il record di un'esecuzione: `{ image_id, source: live|batch, order: [...], varia
 input_warnings, heuristic_defects, latency_ms, judge: [...] }`. `order` fissa l'ordine cieco
 delle schede; `judge` è vuoto nel prodotto (lo riempie solo il batch con giudice acceso).
 
-## Scelte e tabellone
+## Giudizi e tabellone
 
-- `POST /choices` `{ image_id, chosen: "D1"|"D2"|"D3"|null, shown, order, tester }` →
-  `experiments/choices.csv`. `null` = tiene l'originale.
-- `GET /summary` → per famiglia: `shown`, `chosen`, `choice_share` con intervallo di Wilson,
-  `cost_mean_usd`, `latency_p50/p95_ms`, `error_rate`, `fixes_rate`, `gate_rejected_rate`,
+- `POST /choices` (webhook `photo-lab-choice`) `{ image_id, task, variant, answer, shown, order, tester }` →
+  `experiments/judgments.csv`, una riga per risposta. `task` = `realism` (variant = la versione
+  mostrata accanto all'originale, answer `yes` = alterata | `no`), `quality` (answer `1`..`5`),
+  `best` (variant = la scelta, `""` = tiene l'originale; shown = le versioni sullo schermo).
+  La vista Prova registra `best` con tester vuoto.
+- `GET /summary` → per famiglia le quattro misure della fase 1: `alteration_rate` (+ IC di Wilson),
+  `mos` (media dei voti 1-5), `choice_share` (+ IC), `effective_rate` (difetti etichettati trattati
+  dal modulo competente, niente fermato dal gate); poi `cost_mean_usd`, `latency_p50/p95_ms`, `error_rate`, `fixes_rate`, `gate_rejected_rate`,
   `unchanged_rate`, `fidelity_min`, `diagnosis {precision, recall, f1}` sulle foto etichettate;
   più `verdict` con la regola di decisione applicata.
 - `GET /runs/{id}/cards` → le schede cieche di un'esecuzione (immagini incluse).

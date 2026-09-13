@@ -29,7 +29,7 @@ export function CompareSlider({ before, after, beforeLabel = 'Originale', afterL
     <div
       ref={box}
       style={{ aspectRatio: ratio, maxHeight: '72vh', maxWidth: `calc(72vh * ${ratio})` }}
-      className="group relative mx-auto w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-lg bg-neutral-100"
+      className="group relative mx-auto w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-md bg-neutral-100"
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         moveTo(e.clientX)

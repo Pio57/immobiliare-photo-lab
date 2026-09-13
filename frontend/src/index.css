@@ -1,49 +1,54 @@
 @import "tailwindcss";
 
-/* Warm paper, terracotta, sage. The `neutral` scale is remapped to warm stone so
-   every component shifts together; colour proper is reserved for the gate verdict
-   (sage = passed, amber = rejected) and for the terracotta brand accent. */
+/* Palette borrowed from immobiliare.it: one blue, cool greys, white surfaces.
+   Colour proper is reserved for the brand blue (actions, selection), the gate
+   verdict (green = passed, amber = rejected) and errors (red). */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Fraunces", "Instrument Serif", Georgia, serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --color-neutral-50: #faf7f2;
-  --color-neutral-100: #f3eee6;
-  --color-neutral-200: #e8e0d4;
-  --color-neutral-300: #d6cbbb;
-  --color-neutral-400: #b3a591;
-  --color-neutral-500: #8c7f6d;
-  --color-neutral-600: #6b6052;
-  --color-neutral-700: #514840;
-  --color-neutral-800: #37312b;
-  --color-neutral-900: #241f1b;
-  --color-neutral-950: #17130f;
+  --color-neutral-50: #f5f6f7;
+  --color-neutral-100: #eceef1;
+  --color-neutral-200: #d5d7dd;
+  --color-neutral-300: #bfc3cc;
+  --color-neutral-400: #9fa5b6;
+  --color-neutral-500: #7c8395;
+  --color-neutral-600: #60687a;
+  --color-neutral-700: #4a5162;
+  --color-neutral-800: #373c47;
+  --color-neutral-900: #262a33;
+  --color-neutral-950: #171a20;
 
-  --color-brand-50: #fdf1ec;
-  --color-brand-100: #f9dcd1;
-  --color-brand-200: #f2b9a5;
-  --color-brand-500: #c8553d;
-  --color-brand-600: #a94430;
+  --color-brand-50: #e6f1f9;
+  --color-brand-100: #cce3f3;
+  --color-brand-200: #99c7e6;
+  --color-brand-500: #0074c1;
+  --color-brand-600: #005f9e;
+  --color-brand-700: #004b7d;
 
-  --color-emerald-50: #eef4ea;
-  --color-emerald-200: #c9dcbf;
-  --color-emerald-500: #6e9a5e;
-  --color-emerald-600: #567d48;
-  --color-emerald-700: #43633a;
-  --color-emerald-800: #354f2f;
+  --color-emerald-50: #e8f5ee;
+  --color-emerald-200: #b7e0c8;
+  --color-emerald-500: #1f9d5a;
+  --color-emerald-600: #187f48;
+  --color-emerald-700: #14663b;
+  --color-emerald-800: #0f4d2d;
 
-  --color-amber-50: #fbf1dc;
-  --color-amber-200: #f0d59a;
-  --color-amber-500: #d9962a;
-  --color-amber-600: #b87a1d;
-  --color-amber-800: #7a5012;
-  --color-amber-900: #5f3f0f;
+  --color-amber-50: #fff1df;
+  --color-amber-200: #f7d9a6;
+  --color-amber-500: #e0961f;
+  --color-amber-600: #bf7d12;
+  --color-amber-800: #7d500a;
+  --color-amber-900: #5f3d07;
 
-  --color-ink: #241f1b;
-  --color-muted: #7d7265;
-  --color-line: #e8e0d4;
-  --color-surface: #fffdf9;
-  --color-canvas: #f6f1e9;
+  --color-red-50: #fdecee;
+  --color-red-200: #f7b8bf;
+  --color-red-600: #e50013;
+  --color-red-900: #7a000a;
+
+  --color-ink: #373c47;
+  --color-muted: #60687a;
+  --color-line: #d5d7dd;
+  --color-surface: #ffffff;
+  --color-canvas: #f5f6f7;
 }
 
 html {
@@ -52,11 +57,7 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background:
-    radial-gradient(900px 420px at 8% -10%, #fff8ee 0%, rgba(255, 248, 238, 0) 65%),
-    radial-gradient(700px 380px at 100% 0%, #f7e6dc 0%, rgba(247, 230, 220, 0) 60%),
-    linear-gradient(180deg, #f9f5ee 0%, var(--color-canvas) 100%);
-  background-attachment: fixed;
+  background: var(--color-canvas);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -78,7 +79,7 @@ table {
 }
 .skeleton {
   animation: pulse-soft 1.5s ease-in-out infinite;
-  background: linear-gradient(100deg, #efe7dc 0%, #f7f1e8 40%, #efe7dc 80%);
+  background: linear-gradient(100deg, #e4e6ea 0%, #eef0f3 40%, #e4e6ea 80%);
 }
 
 @keyframes rise {
@@ -92,5 +93,5 @@ table {
   }
 }
 .rise {
-  animation: rise 0.35s ease-out both;
+  animation: rise 0.3s ease-out both;
 }

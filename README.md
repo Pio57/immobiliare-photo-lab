@@ -110,8 +110,10 @@ reimportarli. Il sito, anche senza backend, mostra Studio ed Esperimento dalla c
 - **Prova**: si carica una foto; dopo circa un minuto arrivano tre versioni in ordine casuale e
   senza nome, si sceglie quella che si userebbe come copertina (o si tiene l'originale) e poi si
   scopre quale workflow ha prodotto cosa, con difetti trovati, moduli eseguiti, costo e tempo.
-- **Studio**: test cieco a coppie sulle foto del dataset, per raccogliere giudizi in modo
-  sistematico da più valutatori.
+- **Studio**: test cieco sulle foto del dataset. Per ogni foto il valutatore risponde a tre
+  domande senza sapere quale workflow ha prodotto cosa: realismo (originale accanto a una
+  versione, "vedi elementi finti o diversi?"), qualità (la sola versione, voto da 1 a 5) e foto
+  migliore (originale in alto, tre versioni, "quale useresti?"). Si può interrompere e riprendere.
 - **Esperimento**: il tabellone, ricalcolato a ogni apertura dai record e dai giudizi, con la
   regola di decisione applicata.
 

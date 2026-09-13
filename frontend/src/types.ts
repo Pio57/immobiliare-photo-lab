@@ -6,9 +6,9 @@
 export type VariantId = 'D1' | 'D2' | 'D3'
 
 export const VARIANT_LABEL: Record<VariantId, string> = {
-  D1: 'D1 — Regole',
-  D2: 'D2 — Haiku + verifica',
-  D3: 'D3 — Generativo',
+  D1: 'D1 · Regole',
+  D2: 'D2 · Modello con verifica',
+  D3: 'D3 · Generativo',
 }
 
 export const VARIANT_SUBTITLE: Record<VariantId, string> = {
@@ -36,7 +36,7 @@ export const DEFECT_LABEL: Record<string, string> = {
 export type ModuleName = 'Risoluzione' | 'Colore' | 'Luce' | 'Pulizia' | 'Raddrizza' | 'Nitidezza'
 
 export const MODULE_INFO: Record<ModuleName, { fixes: string; params: string }> = {
-  Risoluzione: { fixes: 'bassa risoluzione — ricostruzione AI, etichettata', params: 'Real-ESRGAN ×2' },
+  Risoluzione: { fixes: 'bassa risoluzione (ricostruzione AI, etichettata)', params: 'Real-ESRGAN ×2' },
   Colore: { fixes: 'colore falsato', params: 'white_balance' },
   Luce: { fixes: 'buia / controluce', params: 'livelli, gamma, clahe_clip' },
   Pulizia: { fixes: 'rumore, blocchi JPEG', params: 'denoise' },
@@ -108,20 +108,27 @@ export interface ProductResponse {
   latency_ms: number
 }
 
-/** What the Prova view sends after the agent chooses. `chosen` null = keeps the original. */
-export interface Choice {
+/** One answer of one tester on one photo, appended to experiments/judgments.csv.
+ *  realism: variant = the version shown next to the original, answer yes (altered) | no.
+ *  quality: variant = the version shown alone, answer "1".."5".
+ *  best: variant = the chosen version ("" = keeps the original), shown = the versions on screen. */
+export type Task = 'realism' | 'quality' | 'best'
+
+export interface Judgment {
   image_id: string
-  /** a variant, null = keeps the original (Prova), 'tie' = pair indistinguishable (Studio) */
-  chosen: VariantId | 'tie' | null
+  task: Task
+  variant: VariantId | ''
+  answer: 'yes' | 'no' | '1' | '2' | '3' | '4' | '5' | ''
   shown: VariantId[]
   order: VariantId[]
-  /** study only: the tester's initials */
-  tester?: string
+  /** the tester's initials; "" from the Prova view */
+  tester: string
 }
 
 export interface StudyInfo {
   ids: string[]
   ready: string[]
+  /** answers given so far, per tester */
   testers: Record<string, number>
 }
 
@@ -130,10 +137,21 @@ export interface SummaryRow {
   variant: VariantId
   label: string
   runs: number
+  /** the four measures of phase 1 */
+  realism_n: number
+  altered: number
+  alteration_rate: number | null
+  alteration_ci: [number, number]
+  quality_n: number
+  mos: number | null
+  mos_sd: number | null
   shown: number
   chosen: number
   choice_share: number | null
   choice_ci: [number, number]
+  effective_n: number
+  effective_rate: number | null
+  /** cost, time, reliability, risk */
   cost_mean_usd: number
   latency_p50_ms: number
   latency_p95_ms: number
@@ -153,9 +171,11 @@ export interface SummaryRow {
 export interface Summary {
   generated_at: number
   runs: number
+  judgments: number
+  testers: number
+  /** "best" judgements */
   choices: number
   keep_original_choices: number
-  ties?: number
   keep_original_share: number | null
   variants: SummaryRow[]
   verdict: { n_choices: number; min_choices: number; excluded: { variant: string; why: string }[]; winner: VariantId | null; tie: VariantId[]; reason: string }

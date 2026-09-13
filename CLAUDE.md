@@ -17,9 +17,10 @@ giudicato su **come si misura**, non su quanto è bella la foto dopo. README = a
 
 ## Architettura
 ```
-frontend/     Vite + React 19 + TS + Tailwind 4. Prova (prodotto, resta montata), Studio (test
-              cieco a coppie), Esperimento (tabellone). Fallback su public/snapshot/ se il
-              backend non risponde.
+frontend/     Vite + React 19 + TS + Tailwind 4, palette immobiliare.it (blu #0074c1, grigi
+              freddi). Prova (prodotto, resta montata), Studio (test cieco: per foto realismo
+              sì/no, qualità 1-5, foto migliore), Esperimento (tabellone). Fallback su
+              public/snapshot/ se il backend non risponde.
 cv-service/   FastAPI + OpenCV. pipeline.py (WB → livelli+gamma → CLAHE → denoise → rotazione →
               sharpen), metrics.py (gate), api/routes.py (/prepare /apply /gate_remote),
               api/dataset.py (/dataset /runs /processed), api/experiment.py (/choices /summary
@@ -31,7 +32,7 @@ n8n/          build_workflows.py genera: workflow-correct (Correggi, sub-workflo
 prompts/      diagnosis.md (System, User, Review), judge.md.
 dataset/raw/  24 foto vere + labels.csv (vocabolario: underexposed backlit color_cast noise tilt
               compressed low_resolution; ok). processed/ ignorata da git.
-experiments/  runs/<id>.json (versionati), choices.csv, study-set.txt, gate-calibration.txt,
+experiments/  runs/<id>.json (versionati), judgments.csv, study-set.txt, gate-calibration.txt,
               scripts/calibrate_gate.py, scripts/export_snapshot.py.
 docs/         contracts.md, gate-calibration.md, report/nota.md.
 ```
@@ -49,8 +50,13 @@ docs/         contracts.md, gate-calibration.md, report/nota.md.
   solo → solo tilt ≤3° (prospettiva ≠ rotazione; il gate non vede un verso sbagliato).
 - **Gate calibrato sui dati** (`docs/gate-calibration.md`): 50/50 lecite passano, 7/100 vietate
   passano (crepe sottili). Non reintrodurre SSIM/Canny senza rifare il banco.
-- **Studio a coppie** (originale sopra, ←/→/↓), un giudizio per riga in `choices.csv`
-  (`chosen` = variante | `tie`; `""` = originale dalla Prova). Wilson 95% nel tabellone.
+- **Studio = fase 1 della nota**: per ogni foto, per ogni versione (ordine casuale) realismo
+  (S/N) e qualità (1-5), poi foto migliore (1/2/3, 0 = originale). Una riga per risposta in
+  `judgments.csv` (`task` realism|quality|best). La Prova registra `best` con tester vuoto.
+  Il tabellone calcola tasso di alterazione, MOS, quota di vittorie (Wilson 95%), output efficace
+  (etichette manuali; `compressed` è condizione dell'input, non difetto). La regola esclude
+  errori >10%, gate >10%, alterazione >10% (con ≥10 risposte); decide `best` con ≥30 giudizi.
+- Il webhook n8n resta `photo-lab-choice` → `POST /choices` (nome storico): niente re-import.
 
 ## Comandi (Windows / PowerShell)
 ```powershell
@@ -71,9 +77,9 @@ Re-import: aprire il workflow, Ctrl+A, Canc, Import from file, ricollegare le cr
 - Commit solo su richiesta esplicita dell'utente.
 
 ## Stato attuale (aggiornare ogni sera)
-- 2026-09-13: progetto ripensato e completato: dataset di 24 foto vere etichettate, batch senza
-  giudice eseguito (record in experiments/runs), studio cieco a coppie fatto da un valutatore
-  (68 giudizi), tabellone e regola di decisione funzionanti, snapshot statico per il sito.
-  Storia git riscritta da zero (il vecchio progetto A/B/C non esiste più). Da fare: PDF da
-  docs/report/nota.md con screenshot dei canvas (n8n/screenshots/) e del sito; deploy del
-  frontend su Vercel; eventuale VPS per backend sempre acceso. Trial n8n scade ~17/09.
+- 2026-09-13: online su Vercel + VPS Hostinger (n8n self-hosted, cv-service Docker, repo in
+  /opt/photo-lab, `bash deploy/update.sh` per aggiornare). Nota PDF (2 pagine) consegnabile.
+  Sera: UI rifatta con palette immobiliare.it; Studio riscritto sulle tre domande della fase 1;
+  tabellone con le quattro misure; giudizi vecchi a coppie archiviati in
+  experiments/choices-pairwise-archive.csv, si riparte da zero. Da fare: aggiornare il server,
+  far fare lo Studio a 3-5 persone, rifare screenshot del sito, video demo, img_013 nel batch.
