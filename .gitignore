@@ -22,3 +22,8 @@ Thumbs.db
 .vscode/
 .idea/
 docs/report/*.html
+
+# the judgements of the blind study are written on the server by cv-service; copy them
+# back with scp and `git add -f experiments/judgments.csv` when the study is over
+experiments/judgments.csv
+experiments/choices.csv

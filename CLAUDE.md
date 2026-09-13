@@ -78,8 +78,8 @@ Re-import: aprire il workflow, Ctrl+A, Canc, Import from file, ricollegare le cr
 
 ## Stato attuale (aggiornare ogni sera)
 - 2026-09-13: online su Vercel + VPS Hostinger (n8n self-hosted, cv-service Docker, repo in
-  /opt/photo-lab, `bash deploy/update.sh` per aggiornare). Nota PDF (2 pagine) consegnabile.
+  /opt/photo-lab, `bash deploy/update.sh` per aggiornare; judgments.csv vive sul server, ignorato da git, si riporta con scp). Nota PDF (2 pagine) consegnabile.
   Sera: UI rifatta con palette immobiliare.it; Studio riscritto sulle tre domande della fase 1;
   tabellone con le quattro misure; giudizi vecchi a coppie archiviati in
-  experiments/choices-pairwise-archive.csv, si riparte da zero. Da fare: aggiornare il server,
+  si riparte da zero (giudizi vecchi a coppie cancellati). Da fare: aggiornare il server,
   far fare lo Studio a 3-5 persone, rifare screenshot del sito, video demo, img_013 nel batch.

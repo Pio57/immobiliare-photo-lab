@@ -53,8 +53,10 @@ Il prototipo è pubblicato e funziona senza nulla di acceso sul computer di chi 
   sul server.
 
 Ogni push su `main` ricostruisce il sito da solo. Per aggiornare cv-service sul server basta
-`bash /opt/photo-lab/deploy/update.sh` (pull, rebuild, riavvio, controllo di salute). I workflow
-n8n si aggiornano rigenerando i JSON e reimportandoli.
+`bash /opt/photo-lab/deploy/update.sh` (allinea il clone a `origin/main`, rebuild, riavvio,
+controllo di salute). I workflow n8n si aggiornano rigenerando i JSON e reimportandoli. Le
+risposte dello Studio si accumulano sul server in `experiments/judgments.csv`, fuori da git: si
+riportano nel repository con `scp` a studio concluso.
 
 ## Di cosa c'è bisogno per farlo girare da zero
 
