@@ -1,0 +1,395 @@
+{
+  "name": "photo-lab scelte (Esperimento)",
+  "nodes": [
+    {
+      "name": "sticky Scelta",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        100
+      ],
+      "parameters": {
+        "content": "## Scelta\nLa vista Prova manda { image_id, chosen, shown, order } dopo che l'agente ha scelto alla cieca. cv-service la accoda a experiments/choices.csv.",
+        "height": 260,
+        "width": 900,
+        "color": 5
+      }
+    },
+    {
+      "name": "sticky Tabellone",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        440
+      ],
+      "parameters": {
+        "content": "## Tabellone\nLa vista Esperimento chiede il riepilogo: per ogni workflow quante volte scelto su quante mostrate (intervallo di Wilson), costo, latenza, errori, bocciature del gate, guardie. E la regola di decisione applicata.",
+        "height": 260,
+        "width": 900,
+        "color": 3
+      }
+    },
+    {
+      "name": "Webhook scelta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        220
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "photo-lab-choice",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "name": "Registra scelta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/choices",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Rispondi scelta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        220
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Webhook tabellone",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        560
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "photo-lab-summary",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "name": "Riepilogo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        560
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/summary",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Rispondi tabellone",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        560
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sticky Risultato",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        780
+      ],
+      "parameters": {
+        "content": "## Risultato\nLa Prova ha ricevuto l'image_id subito; qui chiede ogni 5 s se il record e' pronto. cv-service risponde 404 finche' il prodotto non ha salvato il run, poi le tre schede con le immagini.",
+        "height": 260,
+        "width": 900,
+        "color": 6
+      }
+    },
+    {
+      "name": "Webhook risultato",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        900
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "photo-lab-result",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "name": "Schede",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        900
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://86d2-147-53-207-91.ngrok-free.app/runs/{{ $json.query.image_id }}/cards",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Rispondi risultato",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        900
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.ready ? $json : { ready: false }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sticky Studio",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        100
+      ],
+      "parameters": {
+        "content": "## Studio\nLa vista Studio chiede la lista delle foto dello studio cieco (experiments/study-set.txt) e quali hanno gia' le tre versioni pronte.",
+        "height": 260,
+        "width": 700,
+        "color": 2
+      }
+    },
+    {
+      "name": "Webhook studio",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        220
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "photo-lab-study",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "name": "Lista studio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        220
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/study",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Rispondi studio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        220
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook scelta": {
+      "main": [
+        [
+          {
+            "node": "Registra scelta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registra scelta": {
+      "main": [
+        [
+          {
+            "node": "Rispondi scelta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook tabellone": {
+      "main": [
+        [
+          {
+            "node": "Riepilogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Riepilogo": {
+      "main": [
+        [
+          {
+            "node": "Rispondi tabellone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook risultato": {
+      "main": [
+        [
+          {
+            "node": "Schede",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schede": {
+      "main": [
+        [
+          {
+            "node": "Rispondi risultato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook studio": {
+      "main": [
+        [
+          {
+            "node": "Lista studio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lista studio": {
+      "main": [
+        [
+          {
+            "node": "Rispondi studio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,1114 @@
+{
+  "name": "photo-lab prodotto (Prova)",
+  "nodes": [
+    {
+      "name": "sticky Ingresso",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        180
+      ],
+      "parameters": {
+        "content": "## Ingresso\nUpload dalla vista Prova. /prepare ritaglia le bande nere, limita la dimensione, misura la foto, calcola la diagnosi euristica (D1, e riserva se un modello non risponde) e salva l'originale preparato. Il webhook RISPONDE SUBITO con l'image_id: il generativo puo' metterci due minuti a freddo, il webhook di n8n Cloud si chiude a ~100 s.",
+        "height": 300,
+        "width": 880,
+        "color": 4
+      }
+    },
+    {
+      "name": "sticky Tre famiglie di correzione",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        620,
+        -140
+      ],
+      "parameters": {
+        "content": "## Tre famiglie di correzione\nD1 e D2 decidono COSA correggere e con quali valori, poi passano dallo stesso sub-workflow Correggi (un modulo per difetto, gate per modulo). D3 ridisegna i pixel in un colpo solo. Stesso gate di fedelta' per tutti: la scelta dell'agente misura il metodo, il gate misura il rischio.",
+        "height": 160,
+        "width": 3000,
+        "color": 7
+      }
+    },
+    {
+      "name": "sticky Tre versioni, alla cieca",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3900,
+        180
+      ],
+      "parameters": {
+        "content": "## Tre versioni, alla cieca\nIl record fissa un ordine casuale (V1..V3) e va in experiments/runs. Il sito, che ha gia' ricevuto l'image_id, chiede il risultato al workflow Scelte finche' non e' pronto. L'agente sceglie (o tiene l'originale); il nome del workflow si scopre dopo. Una versione bocciata dal gate si vede ma non si puo' scegliere.",
+        "height": 300,
+        "width": 900,
+        "color": 2
+      }
+    },
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        320
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "photo-lab-product",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "name": "Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        320
+      ],
+      "parameters": {
+        "jsCode": "\n// The upload arrives as binary on the webhook item; hand it to cv-service as base64.\nconst name = Object.keys($input.item.binary || {})[0];\nif (!name) throw new Error('no file uploaded (expected multipart field \"image\")');\nconst buf = await this.helpers.getBinaryDataBuffer(0, name);\nreturn { json: { image_b64: buf.toString('base64'), t0: Date.now() } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Prepara",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/prepare",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.image_b64, save_as: 'live_' + $('Upload').first().json.t0 + '_orig', image_id: 'live_' + $('Upload').first().json.t0 }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Rispondi subito",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        320
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, image_id: $json.image_id }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Attendi le 3 versioni",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3720,
+        420
+      ],
+      "parameters": {
+        "numberInputs": 3,
+        "options": {}
+      }
+    },
+    {
+      "name": "Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        420
+      ],
+      "parameters": {
+        "jsCode": "\n// The run record: the three versions in a RANDOM order with blind ids fixed here.\n// Images are already on disk (Correggi and the gate saved them); cv-service\n// assembles the cards from this record when the Prova view asks for the result.\nconst prep = $('Prepara').first().json;\nconst variants = ['D1', 'D2', 'D3'].map(v => $('Record ' + v).first().json.variants[0]);\nconst order = variants.map(v => v.variant).sort(() => Math.random() - 0.5);\nreturn { json: { image_id: prep.image_id, source: 'live', judge: [], order,\n  variants: variants.map(({ output_b64, ...rest }) => rest),\n  input_warnings: prep.stats.input_warnings || [], heuristic_defects: prep.heuristic_defects,\n  latency_ms: Date.now() - $('Upload').first().json.t0 } };\n"
+      }
+    },
+    {
+      "name": "Salva run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4200,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://86d2-147-53-207-91.ngrok-free.app/runs/{{ $json.image_id }}",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "sticky D1 - Regole",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        620,
+        20
+      ],
+      "parameters": {
+        "content": "## D1 - Regole\nRegole sui numeri misurati da /prepare decidono cosa correggere e con quali valori. Zero modelli, costo 0. La baseline: se un modello non la batte, non serve.",
+        "height": 300,
+        "width": 3000,
+        "color": 5
+      }
+    },
+    {
+      "name": "D1: piano",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        120
+      ],
+      "parameters": {
+        "jsCode": "\n// The plan for Correggi: which parameters, from whom, and where the result goes.\nconst prep = $('Prepara').first().json;\nconst heuristic = { plan: prep.heuristic_params, defects: prep.heuristic_defects, advice: [], reason: '',\n  recommendation: prep.heuristic_params.recommendation || 'apply', cost_usd: 0, latency_ms: 0, error: null, model: null };\nlet d = heuristic, source = 'heuristic';\n\nconst plan = { ...d.plan };\n// Geometry: when the line detector measured a tilt, its value wins (sign and size\n// come from actual edges). The model's rotate_deg counts only where the detector\n// found nothing to measure. A vision model reads \"leans left\" right, the sign of\n// the angle less so; and the gate cannot catch a wrong sign (it aligns the original).\nconst measured = Number(prep.stats.tilt_deg || 0);\nconst fixes = [];\nif (measured !== 0 && plan.rotate_deg !== measured) { plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }\n// A plan that darkens a dark photo (or brightens a bright one) is a sign error, not\n// a judgement: flip it and say so in the record, so the batch can count how often.\nconst luma = Number(prep.stats.mean_luminance || 128);\nif ((luma < 100 && plan.gamma > 1) || (luma > 190 && plan.gamma < 1)) { plan.gamma = Number((1 / plan.gamma).toFixed(2)); fixes.push('gamma: direction flipped'); }\n// Compressed input: local contrast amplifies the JPEG blotches on flat walls and a\n// strong unsharp mask redraws the block edges. Measured, so enforced, not suggested.\nconst compressed = (prep.stats.input_warnings || []).some(w => String(w).startsWith('heavy_compression') || String(w).startsWith('low_resolution'));\nif (compressed && plan.clahe_clip > 0) { fixes.push(`clahe_clip ${plan.clahe_clip} -> 0 (compressed input)`); plan.clahe_clip = 0; }\nif (compressed && plan.sharpen > 0.2) { fixes.push(`sharpen ${plan.sharpen} -> 0.2 (compressed input)`); plan.sharpen = 0.2; }\ndelete plan.exposure;\nif (d.recommendation === 'keep_original') Object.assign(plan, {\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0});\nplan.recommendation = d.recommendation === 'mild' ? 'mild' : 'apply';\nreturn { json: { variant: \"D1\", label: \"Regole\", image_id: prep.image_id, source, model: d.model || null, verdict: d.verdict || null,\n  input: { ...{ image_b64: prep.image_b64 }, low_resolution: (prep.stats.input_warnings || []).some(w => String(w).startsWith('low_resolution')) }, save_as: prep.image_id + '_D1',\n  plan, plan_fixes: fixes, defects: d.defects, advice: d.advice, reason: d.reason, recommendation: d.recommendation,\n  diagnosis_cost_usd: d.cost_usd, diagnosis_latency_ms: d.latency_ms, diagnosis_error: d.error, t0: Date.now() } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D1: Correggi",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1820,
+        120
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "6FpWUt4W3SG0YgVw"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Record D1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        120
+      ],
+      "parameters": {
+        "jsCode": "\n// VariantResult for D1: diagnosis + correction record, see docs/contracts.md.\nlet plan = $('D1: piano').first().json;\nlet rounds = [plan];\nconst r = $input.item.json;\nconst image_id = plan.image_id;\nconst status = plan.diagnosis_error && plan.source === 'heuristic' && \"D1\" !== 'D1' ? 'error'\n  : (r.changed ? (r.fidelity.passed ? 'accepted' : 'rejected_fidelity') : 'unchanged');\nconst v = { image_id, variant: \"D1\", label: plan.label, model: plan.model, source: plan.source,\n  output_path: r.output_path, output_b64: r.output_b64 || null, params: r.params, plan: plan.plan, fidelity: r.fidelity, steps: r.steps,\n  applied: r.applied, ai_reconstructed: r.ai_reconstructed === true, crop_pct: r.crop_pct || 0,\n  defects: plan.defects, advice: plan.advice, reason: plan.reason, recommendation: plan.recommendation, plan_fixes: plan.plan_fixes,\n  cost_usd: Number((plan.diagnosis_cost_usd || 0).toFixed(5)), latency_ms: Date.now() - plan.t0 + (plan.diagnosis_latency_ms || 0),\n  iterations: rounds.length, review_verdict: rounds.length > 1 ? 'adjust' : (plan.verdict || null), status, error: plan.diagnosis_error || null };\nreturn { json: { image_id, variants: [...[], v], judge: [] } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "sticky D2 - Haiku + verifica",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        620,
+        340
+      ],
+      "parameters": {
+        "content": "## D2 - Haiku + verifica\nIl modello guarda foto + numeri, nomina i difetti (vocabolario fisso), sceglie i VALORI dei moduli che servono. Poi guarda il RISULTATO accanto all'originale: se vede ancora un difetto (o uno nuovo: velo, chiazze, cera) corregge il piano e rifa' un giro. Il flusso agentico chiuso.",
+        "height": 300,
+        "width": 3000,
+        "color": 3
+      }
+    },
+    {
+      "name": "D2: richiesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// AI diagnoser request. Prompt text comes from prompts/diagnosis.md (generated, do not edit here).\nconst SYSTEM = \"You are a photo technician for a real-estate listings platform. You receive one\\ncover photo an estate agent just took with a phone, plus measured statistics.\\nYour job has two parts:\\n\\n1. **Diagnose**: name the technical defects, from this fixed vocabulary only —\\n   `underexposed` (dark), `backlit` (window blows out, room dark), `color_cast`\\n   (orange tungsten, blue window light, green neon), `noise` (visible grain),\\n   `tilt` (verticals or horizon lean), `compressed` (JPEG blocks, was sent through\\n   a messaging app), `low_resolution` (small, soft; the pipeline then runs a labelled\\n   AI super-resolution step before your corrections). Empty list = nothing wrong.\\n2. **Plan**: for each defect you found, set the parameter of the module that fixes it.\\n   Leave every other parameter at its neutral value: a module that is not needed\\n   is not run. A photo that is only tilted is only rotated.\\n\\nModules and their parameters (values outside the range are clamped):\\n- Colour — `white_balance` 0–1, strength of gray-world correction. 0 = module off.\\n  Use > 0.5 only with a clear cast.\\n- Light — `exposure` in stops, -2 to +2: POSITIVE = brighter, negative = darker,\\n  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); a washed-out photo\\n  needs -0.5. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for\\n  flat photos). For `backlit` use a moderate `exposure` (+0.5 to +1) and `clahe_clip`\\n  2–3: the window will stay bright, the room comes up.\\n- Clean — `denoise` 0–15, non-local-means strength. 0 = off. 5–10 for evening grain.\\n  On `compressed` input set at least 4 even if there is no grain: it hides the JPEG\\n  blocks that brightening would reveal. On `compressed` input also keep `clahe_clip`\\n  at 0 and `sharpen` at most 0.2: local contrast turns the blocks into blotches on\\n  flat walls.\\n- Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set\\n  `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a\\n  crisp photo. It amplifies edges that exist, it cannot add detail.\\n- Straighten — `rotate_deg` -10–10, positive = counter-clockwise. 0 = off.\\n  The measured `tilt_deg` is what the pipeline found from straight lines; when it is\\n  not 0 it is applied as measured and your value is ignored. When it is 0 the\\n  detector found no usable lines: **look at the photo yourself** and, if a headboard,\\n  a shelf or the floor line visibly leans, set `rotate_deg`. Sign: a line whose\\n  RIGHT end is LOWER than its left end needs a POSITIVE value (counter-clockwise);\\n  right end higher, negative. Typical hand-held tilt is 2–6 degrees.\\n\\nYou may only correct exposure, local contrast, white balance, sensor noise and\\ncamera tilt. Never describe or request a change to the content of the photo\\n(objects, walls, sky, furniture). Cracks, mould, stains are part of the truthful\\nrepresentation of the property: leave them, do not mention them as defects.\\n\\n**The correction has a cost.** Brightening also brightens the noise hiding in the\\nshadows; strong local contrast makes grain and halos visible; denoising cannot\\nremove luminance grain without smoothing wall texture. `noise_after_brightening`\\nin the statistics is this cost, already computed: above ~3 the photo will look\\ngrainy once exposed correctly. So the plan also carries a `recommendation`:\\n- `apply` — default. Real defect, `noise_after_brightening` below ~3.\\n- `mild` — every value is halved. Only when the correction would be self-defeating:\\n  `noise_after_brightening` above ~3. `compressed` alone is not a reason.\\n- `keep_original` — nothing is applied. Only when correcting cannot help: no defect\\n  found (`mean_luminance` 110–150, `color_cast` within ±4, straight), or the photo is\\n  so degraded (`low_resolution` plus `noise_after_brightening` above ~5) that any\\n  correction makes it visibly worse.\\n\\nFinally, **advise** on what no module can fix but the agent should know, from this\\nvocabulary: `blur` (motion or focus), `perspective` (wide-angle keystone, walls\\nconverge), `clutter` (objects that distract from the room), `reshoot` (the photo is\\nbeyond correction). Empty list when there is nothing to say.\\n\\nBe conservative: a correction that is too weak is fixed by the user with one more\\nclick; one that is too strong is rejected by the fidelity gate and the module is skipped.\";\nconst USER = \"Measured statistics of this photo:\\n```json\\n{{ $json.stats }}\\n```\\nTypical values: `mean_luminance` 110–150 is well exposed, < 90 is dark;\\n`contrast_std` < 40 is flat; `color_cast` (a, b) beyond ±6 is a visible cast;\\n`noise_estimate` > 2 is visible grain; `tilt_deg` is the rotation the pipeline\\nfound on its own (0 = no straight lines found, look yourself).\\n\\nReturn only a JSON object with exactly these keys:\\n`defects` (list from the fixed vocabulary), `exposure`, `clahe_clip`, `white_balance`,\\n`denoise`, `sharpen`, `rotate_deg`, `recommendation`, `advice` (list from the fixed vocabulary),\\n`reason` (one sentence in Italian, written for the estate agent, not for an engineer:\\nwhat you found and what you decided).\";\nconst stats = $('Prepara').first().json.stats;\nconst user = USER.replace('{{ $json.stats }}', JSON.stringify(stats, null, 2));\nreturn { json: { t0: Date.now(), model: \"claude-haiku-4-5\",\n  body: { model: \"claude-haiku-4-5\", max_tokens: 600, thinking: { type: 'disabled' }, system: SYSTEM,\n    messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $('Prepara').first().json.image_b64 } }, { type: 'text', text: user } ] }] } } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: modello",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "D2: lettura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse the diagnoser's JSON; cost from usage at list price. A malformed or missing\n// answer does not stop anything: it is recorded as an error and the plan falls back\n// to the heuristic diagnosis (D1), which /prepare already computed.\nconst r = $input.item.json;\nconst t0 = $('D2: richiesta').first().json.t0;\nconst text = (r.content || []).map(c => c.text || '').join('');\nconst cost_usd = r.usage ? r.usage.input_tokens * 1.0 / 1e6 + r.usage.output_tokens * 5.0 / 1e6 : 0;\nlet plan = null, defects = [], advice = [], reason = '', recommendation = 'apply', error = null, verdict = 'ok';\nif (!r.content) error = 'diagnosis failed: ' + (r.error && r.error.message ? r.error.message : (r.message || 'no response')).slice(0, 120);\nelse try {\n  const start = text.indexOf('{'), end = text.lastIndexOf('}');\n  const o = JSON.parse(text.slice(start, end + 1));\n  defects = Array.isArray(o.defects) ? o.defects : [];\n  advice = Array.isArray(o.advice) ? o.advice : [];\n  reason = o.reason || '';\n  recommendation = ['apply', 'mild', 'keep_original'].includes(o.recommendation) ? o.recommendation : 'apply';\n  verdict = o.verdict === 'adjust' ? 'adjust' : 'ok';\n  // The model speaks in stops (+1 = brighter), the pipeline in gamma (< 1 = brighter):\n  // gamma = 2^(-exposure/2), so +1 -> 0.71, +2 -> 0.5, -1 -> 1.41. Models invert gamma\n  // routinely; nobody inverts \"brighter\".\n  const exposure = Math.max(-2, Math.min(2, Number(o.exposure ?? 0)));\n  plan = { gamma: Number(Math.pow(2, -exposure / 2).toFixed(2)), clahe_clip: Number(o.clahe_clip ?? 0), white_balance: Number(o.white_balance ?? 0),\n           denoise: Math.round(Number(o.denoise ?? 0)), rotate_deg: Number(o.rotate_deg ?? 0),\n           sharpen: Number(o.sharpen ?? 0), exposure };\n  if (Object.values(plan).some(v => Number.isNaN(v))) throw new Error('non-numeric parameter');\n} catch (e) { error = `diagnosis JSON unreadable: ${String(e).slice(0, 80)} | ${text.slice(0, 120)}`; }\nreturn { json: { model: \"claude-haiku-4-5\", plan, defects, advice, reason, recommendation, verdict, cost_usd, latency_ms: Date.now() - t0, error, body: null } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: piano",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// The plan for Correggi: which parameters, from whom, and where the result goes.\nconst prep = $('Prepara').first().json;\nconst heuristic = { plan: prep.heuristic_params, defects: prep.heuristic_defects, advice: [], reason: '',\n  recommendation: prep.heuristic_params.recommendation || 'apply', cost_usd: 0, latency_ms: 0, error: null, model: null };\nlet d = heuristic, source = 'heuristic';\nconst m = $('D2: lettura').first().json; if (m.plan) { d = m; source = 'model'; } else { d = { ...heuristic, error: m.error, model: m.model, cost_usd: m.cost_usd, latency_ms: m.latency_ms }; }\nconst plan = { ...d.plan };\n// Geometry: when the line detector measured a tilt, its value wins (sign and size\n// come from actual edges). The model's rotate_deg counts only where the detector\n// found nothing to measure. A vision model reads \"leans left\" right, the sign of\n// the angle less so; and the gate cannot catch a wrong sign (it aligns the original).\nconst measured = Number(prep.stats.tilt_deg || 0);\nconst fixes = [];\nif (measured !== 0 && plan.rotate_deg !== measured) { plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }\n// A plan that darkens a dark photo (or brightens a bright one) is a sign error, not\n// a judgement: flip it and say so in the record, so the batch can count how often.\nconst luma = Number(prep.stats.mean_luminance || 128);\nif ((luma < 100 && plan.gamma > 1) || (luma > 190 && plan.gamma < 1)) { plan.gamma = Number((1 / plan.gamma).toFixed(2)); fixes.push('gamma: direction flipped'); }\n// Compressed input: local contrast amplifies the JPEG blotches on flat walls and a\n// strong unsharp mask redraws the block edges. Measured, so enforced, not suggested.\nconst compressed = (prep.stats.input_warnings || []).some(w => String(w).startsWith('heavy_compression') || String(w).startsWith('low_resolution'));\nif (compressed && plan.clahe_clip > 0) { fixes.push(`clahe_clip ${plan.clahe_clip} -> 0 (compressed input)`); plan.clahe_clip = 0; }\nif (compressed && plan.sharpen > 0.2) { fixes.push(`sharpen ${plan.sharpen} -> 0.2 (compressed input)`); plan.sharpen = 0.2; }\ndelete plan.exposure;\nif (d.recommendation === 'keep_original') Object.assign(plan, {\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0});\nplan.recommendation = d.recommendation === 'mild' ? 'mild' : 'apply';\nreturn { json: { variant: \"D2\", label: \"Haiku + verifica\", image_id: prep.image_id, source, model: d.model || null, verdict: d.verdict || null,\n  input: { ...{ image_b64: prep.image_b64 }, low_resolution: (prep.stats.input_warnings || []).some(w => String(w).startsWith('low_resolution')) }, save_as: prep.image_id + '_D2',\n  plan, plan_fixes: fixes, defects: d.defects, advice: d.advice, reason: d.reason, recommendation: d.recommendation,\n  diagnosis_cost_usd: d.cost_usd, diagnosis_latency_ms: d.latency_ms, diagnosis_error: d.error, t0: Date.now() } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: Correggi",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1820,
+        440
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "6FpWUt4W3SG0YgVw"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "D2: verifica richiesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// Flow D2, second look. Prompt text comes from prompts/diagnosis.md (generated, do not edit here).\nconst SYSTEM = \"You are a photo technician for a real-estate listings platform. You receive one\\ncover photo an estate agent just took with a phone, plus measured statistics.\\nYour job has two parts:\\n\\n1. **Diagnose**: name the technical defects, from this fixed vocabulary only —\\n   `underexposed` (dark), `backlit` (window blows out, room dark), `color_cast`\\n   (orange tungsten, blue window light, green neon), `noise` (visible grain),\\n   `tilt` (verticals or horizon lean), `compressed` (JPEG blocks, was sent through\\n   a messaging app), `low_resolution` (small, soft; the pipeline then runs a labelled\\n   AI super-resolution step before your corrections). Empty list = nothing wrong.\\n2. **Plan**: for each defect you found, set the parameter of the module that fixes it.\\n   Leave every other parameter at its neutral value: a module that is not needed\\n   is not run. A photo that is only tilted is only rotated.\\n\\nModules and their parameters (values outside the range are clamped):\\n- Colour — `white_balance` 0–1, strength of gray-world correction. 0 = module off.\\n  Use > 0.5 only with a clear cast.\\n- Light — `exposure` in stops, -2 to +2: POSITIVE = brighter, negative = darker,\\n  0 = off. A dark room needs +1 (visibly dark) to +2 (very dark); a washed-out photo\\n  needs -0.5. Plus `clahe_clip` 0–4 (local contrast, 0 = off, 2 is a safe default for\\n  flat photos). For `backlit` use a moderate `exposure` (+0.5 to +1) and `clahe_clip`\\n  2–3: the window will stay bright, the room comes up.\\n- Clean — `denoise` 0–15, non-local-means strength. 0 = off. 5–10 for evening grain.\\n  On `compressed` input set at least 4 even if there is no grain: it hides the JPEG\\n  blocks that brightening would reveal. On `compressed` input also keep `clahe_clip`\\n  at 0 and `sharpen` at most 0.2: local contrast turns the blocks into blotches on\\n  flat walls.\\n- Sharpen — `sharpen` 0–1, unsharp mask. 0 = off. Use 0.4–0.6 whenever you set\\n  `denoise` (which softens) and on `low_resolution` or `compressed` input; 0 on a\\n  crisp photo. It amplifies edges that exist, it cannot add detail.\\n- Straighten — `rotate_deg` -10–10, positive = counter-clockwise. 0 = off.\\n  The measured `tilt_deg` is what the pipeline found from straight lines; when it is\\n  not 0 it is applied as measured and your value is ignored. When it is 0 the\\n  detector found no usable lines: **look at the photo yourself** and, if a headboard,\\n  a shelf or the floor line visibly leans, set `rotate_deg`. Sign: a line whose\\n  RIGHT end is LOWER than its left end needs a POSITIVE value (counter-clockwise);\\n  right end higher, negative. Typical hand-held tilt is 2–6 degrees.\\n\\nYou may only correct exposure, local contrast, white balance, sensor noise and\\ncamera tilt. Never describe or request a change to the content of the photo\\n(objects, walls, sky, furniture). Cracks, mould, stains are part of the truthful\\nrepresentation of the property: leave them, do not mention them as defects.\\n\\n**The correction has a cost.** Brightening also brightens the noise hiding in the\\nshadows; strong local contrast makes grain and halos visible; denoising cannot\\nremove luminance grain without smoothing wall texture. `noise_after_brightening`\\nin the statistics is this cost, already computed: above ~3 the photo will look\\ngrainy once exposed correctly. So the plan also carries a `recommendation`:\\n- `apply` — default. Real defect, `noise_after_brightening` below ~3.\\n- `mild` — every value is halved. Only when the correction would be self-defeating:\\n  `noise_after_brightening` above ~3. `compressed` alone is not a reason.\\n- `keep_original` — nothing is applied. Only when correcting cannot help: no defect\\n  found (`mean_luminance` 110–150, `color_cast` within ±4, straight), or the photo is\\n  so degraded (`low_resolution` plus `noise_after_brightening` above ~5) that any\\n  correction makes it visibly worse.\\n\\nFinally, **advise** on what no module can fix but the agent should know, from this\\nvocabulary: `blur` (motion or focus), `perspective` (wide-angle keystone, walls\\nconverge), `clutter` (objects that distract from the room), `reshoot` (the photo is\\nbeyond correction). Empty list when there is nothing to say.\\n\\nBe conservative: a correction that is too weak is fixed by the user with one more\\nclick; one that is too strong is rejected by the fidelity gate and the module is skipped.\";\nconst REVIEW = \"You planned this correction for the photo:\\n```json\\n{{ plan }}\\n```\\nThe modules ran with this record (which ones applied, which the fidelity gate skipped):\\n```json\\n{{ steps }}\\n```\\nYou now see the ORIGINAL and the CORRECTED photo. Judge the corrected one as a\\nlisting cover: is a defect from the vocabulary still visible? Did the correction\\nintroduce a problem — grey veil, blotchy walls, over-brightening, halos, waxy\\ntexture, wrong colour? Return the same JSON object as before, with one extra key\\n`verdict`: `\\\"ok\\\"` if the corrected photo is publishable as it is (repeat the plan\\nunchanged), or `\\\"adjust\\\"` with a complete new plan (absolute values, not deltas —\\nthe modules run again from the original). Only adjust for a visible reason and\\nsay it in `reason`, in Italian.\";\nconst plan = $('D2: piano').first().json;\nconst image_id = plan.image_id;\nconst r = $input.item.json;                       // Correggi result\nconst text = REVIEW.replace('{{ plan }}', JSON.stringify(plan.plan, null, 1))\n                   .replace('{{ steps }}', JSON.stringify(r.steps.filter(s => s.needed).map(({ module, applied, params }) => ({ module, applied, params })), null, 1));\nreturn { json: { t0: Date.now(), model: \"claude-haiku-4-5\", correggi: r,\n  body: { model: \"claude-haiku-4-5\", max_tokens: 600, thinking: { type: 'disabled' }, system: SYSTEM,\n    messages: [{ role: 'user', content: [\n      { type: 'text', text: 'ORIGINAL:' }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $('Prepara').first().json.image_b64 } },\n      { type: 'text', text: 'CORRECTED:' }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: r.output_b64 } },\n      { type: 'text', text } ] }] } } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: verifica modello",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2260,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "D2: verifica lettura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse the diagnoser's JSON; cost from usage at list price. A malformed or missing\n// answer does not stop anything: it is recorded as an error and the plan falls back\n// to the heuristic diagnosis (D1), which /prepare already computed.\nconst r = $input.item.json;\nconst t0 = $('D2: verifica richiesta').first().json.t0;\nconst text = (r.content || []).map(c => c.text || '').join('');\nconst cost_usd = r.usage ? r.usage.input_tokens * 1.0 / 1e6 + r.usage.output_tokens * 5.0 / 1e6 : 0;\nlet plan = null, defects = [], advice = [], reason = '', recommendation = 'apply', error = null, verdict = 'ok';\nif (!r.content) error = 'diagnosis failed: ' + (r.error && r.error.message ? r.error.message : (r.message || 'no response')).slice(0, 120);\nelse try {\n  const start = text.indexOf('{'), end = text.lastIndexOf('}');\n  const o = JSON.parse(text.slice(start, end + 1));\n  defects = Array.isArray(o.defects) ? o.defects : [];\n  advice = Array.isArray(o.advice) ? o.advice : [];\n  reason = o.reason || '';\n  recommendation = ['apply', 'mild', 'keep_original'].includes(o.recommendation) ? o.recommendation : 'apply';\n  verdict = o.verdict === 'adjust' ? 'adjust' : 'ok';\n  // The model speaks in stops (+1 = brighter), the pipeline in gamma (< 1 = brighter):\n  // gamma = 2^(-exposure/2), so +1 -> 0.71, +2 -> 0.5, -1 -> 1.41. Models invert gamma\n  // routinely; nobody inverts \"brighter\".\n  const exposure = Math.max(-2, Math.min(2, Number(o.exposure ?? 0)));\n  plan = { gamma: Number(Math.pow(2, -exposure / 2).toFixed(2)), clahe_clip: Number(o.clahe_clip ?? 0), white_balance: Number(o.white_balance ?? 0),\n           denoise: Math.round(Number(o.denoise ?? 0)), rotate_deg: Number(o.rotate_deg ?? 0),\n           sharpen: Number(o.sharpen ?? 0), exposure };\n  if (Object.values(plan).some(v => Number.isNaN(v))) throw new Error('non-numeric parameter');\n} catch (e) { error = `diagnosis JSON unreadable: ${String(e).slice(0, 80)} | ${text.slice(0, 120)}`; }\nreturn { json: { model: \"claude-haiku-4-5\", plan, defects, advice, reason, recommendation, verdict, cost_usd, latency_ms: Date.now() - t0, error, body: null } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: secondo giro?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.verdict === 'adjust' && $json.plan !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "D2: piano 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2920,
+        360
+      ],
+      "parameters": {
+        "jsCode": "\n// The plan for Correggi: which parameters, from whom, and where the result goes.\nconst prep = $('Prepara').first().json;\nconst heuristic = { plan: prep.heuristic_params, defects: prep.heuristic_defects, advice: [], reason: '',\n  recommendation: prep.heuristic_params.recommendation || 'apply', cost_usd: 0, latency_ms: 0, error: null, model: null };\nlet d = heuristic, source = 'heuristic';\nconst m = $('D2: verifica lettura').first().json; if (m.plan) { d = m; source = 'model'; } else { d = { ...heuristic, error: m.error, model: m.model, cost_usd: m.cost_usd, latency_ms: m.latency_ms }; }\nconst plan = { ...d.plan };\n// Geometry: when the line detector measured a tilt, its value wins (sign and size\n// come from actual edges). The model's rotate_deg counts only where the detector\n// found nothing to measure. A vision model reads \"leans left\" right, the sign of\n// the angle less so; and the gate cannot catch a wrong sign (it aligns the original).\nconst measured = Number(prep.stats.tilt_deg || 0);\nconst fixes = [];\nif (measured !== 0 && plan.rotate_deg !== measured) { plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }\n// A plan that darkens a dark photo (or brightens a bright one) is a sign error, not\n// a judgement: flip it and say so in the record, so the batch can count how often.\nconst luma = Number(prep.stats.mean_luminance || 128);\nif ((luma < 100 && plan.gamma > 1) || (luma > 190 && plan.gamma < 1)) { plan.gamma = Number((1 / plan.gamma).toFixed(2)); fixes.push('gamma: direction flipped'); }\n// Compressed input: local contrast amplifies the JPEG blotches on flat walls and a\n// strong unsharp mask redraws the block edges. Measured, so enforced, not suggested.\nconst compressed = (prep.stats.input_warnings || []).some(w => String(w).startsWith('heavy_compression') || String(w).startsWith('low_resolution'));\nif (compressed && plan.clahe_clip > 0) { fixes.push(`clahe_clip ${plan.clahe_clip} -> 0 (compressed input)`); plan.clahe_clip = 0; }\nif (compressed && plan.sharpen > 0.2) { fixes.push(`sharpen ${plan.sharpen} -> 0.2 (compressed input)`); plan.sharpen = 0.2; }\ndelete plan.exposure;\nif (d.recommendation === 'keep_original') Object.assign(plan, {\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0});\nplan.recommendation = d.recommendation === 'mild' ? 'mild' : 'apply';\nreturn { json: { variant: \"D2\", label: \"Haiku + verifica\", image_id: prep.image_id, source, model: d.model || null, verdict: d.verdict || null,\n  input: { ...{ image_b64: prep.image_b64 }, low_resolution: (prep.stats.input_warnings || []).some(w => String(w).startsWith('low_resolution')) }, save_as: prep.image_id + '_D2',\n  plan, plan_fixes: fixes, defects: d.defects, advice: d.advice, reason: d.reason, recommendation: d.recommendation,\n  diagnosis_cost_usd: d.cost_usd, diagnosis_latency_ms: d.latency_ms, diagnosis_error: d.error, t0: Date.now() } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D2: Correggi 2",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3140,
+        360
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "6FpWUt4W3SG0YgVw"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "D2: tieni il primo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2920,
+        540
+      ],
+      "parameters": {
+        "jsCode": "return { json: $('D2: verifica richiesta').first().json.correggi };",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Record D2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        440
+      ],
+      "parameters": {
+        "jsCode": "\n// VariantResult for D2: diagnosis + correction record, see docs/contracts.md.\nlet plan = $('D2: piano').first().json;\nlet rounds = [plan];\n// In a loop, a node that did not run this time still answers .first() with its\n// previous item: the image_id check keeps a stale second round out of this record.\ntry { const p2 = $('D2: piano 2').first().json; if (p2 && p2.plan && p2.image_id === plan.image_id) { rounds.push(p2);\n  plan = { ...p2, plan_fixes: [...(plan.plan_fixes || []), ...(p2.plan_fixes || [])],\n    diagnosis_cost_usd: rounds.reduce((a, x) => a + (x.diagnosis_cost_usd || 0), 0),\n    diagnosis_latency_ms: rounds.reduce((a, x) => a + (x.diagnosis_latency_ms || 0), 0), t0: rounds[0].t0 }; } } catch (e) {}\nconst r = $input.item.json;\nconst image_id = plan.image_id;\nconst status = plan.diagnosis_error && plan.source === 'heuristic' && \"D2\" !== 'D1' ? 'error'\n  : (r.changed ? (r.fidelity.passed ? 'accepted' : 'rejected_fidelity') : 'unchanged');\nconst v = { image_id, variant: \"D2\", label: plan.label, model: plan.model, source: plan.source,\n  output_path: r.output_path, output_b64: r.output_b64 || null, params: r.params, plan: plan.plan, fidelity: r.fidelity, steps: r.steps,\n  applied: r.applied, ai_reconstructed: r.ai_reconstructed === true, crop_pct: r.crop_pct || 0,\n  defects: plan.defects, advice: plan.advice, reason: plan.reason, recommendation: plan.recommendation, plan_fixes: plan.plan_fixes,\n  cost_usd: Number((plan.diagnosis_cost_usd || 0).toFixed(5)), latency_ms: Date.now() - plan.t0 + (plan.diagnosis_latency_ms || 0),\n  iterations: rounds.length, review_verdict: rounds.length > 1 ? 'adjust' : (plan.verdict || null), status, error: plan.diagnosis_error || null };\nreturn { json: { image_id, variants: [...[], v], judge: [] } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "sticky D3 - Generativo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        620,
+        660
+      ],
+      "parameters": {
+        "content": "## D3 - Generativo\nSDXL + ControlNet (Replicate) riceve la foto e l'istruzione 'ben esposta, colori naturali, pulita, nitida, stanza invariata' e RIDISEGNA i pixel. Un colpo solo, niente moduli, non puo' raddrizzare. Stesso gate: e' l'unico che puo' violare la policy, quindi l'unico che il gate boccia davvero.",
+        "height": 300,
+        "width": 3000,
+        "color": 6
+      }
+    },
+    {
+      "name": "D3: richiesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        760
+      ],
+      "parameters": {
+        "jsCode": "\n// D3: constrained img2img (SDXL + ControlNet canny). The prompt asks for the same\n// corrections the modules make, in words; the model decides the pixels.\nconst prep = $('Prepara').first().json;\nreturn { json: { image_id: prep.image_id, t0: Date.now(), body: { version: \"3bb13fe1c33c35987b33792b01b71ed6529d03f165d1c2416375859f09ca9fef\", input: {\n  image: `data:image/jpeg;base64,${$('D3: shrink').first().json.image_b64}`, prompt: \"the same room, real estate listing photo, well exposed, natural white balance, no noise, sharp and clean, realistic, unchanged furniture, walls and layout\", negative_prompt: \"cartoon, painting, render, blurry, extra furniture, different room, repainted walls, text, watermark\",\n  img2img: true, strength: 0.35, condition_scale: 1.1, guidance_scale: 5, num_inference_steps: 30,\n  refine: 'no_refiner', apply_watermark: false, seed: 42 } } } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D3: Replicate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        760
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.replicate.com/v1/predictions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "wait=60"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "D3: succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        760
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.status === 'succeeded' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "D3: in corso?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        940
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ ($json.status === 'starting' || $json.status === 'processing') && ($json._polls || 0) < 8 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "D3: attendi",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1140,
+        940
+      ],
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      }
+    },
+    {
+      "name": "D3: stato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        1080
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.urls.get }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "D3: conta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        1080
+      ],
+      "parameters": {
+        "jsCode": "\n// Poll counter: this node's previous output in the same execution carries the count.\nlet n = 0; try { n = $('D3: conta').first().json._polls || 0; } catch (e) {}\nreturn { json: { ...$input.item.json, _polls: n + 1 } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D3: gate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        760
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/gate_remote",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ original_b64: $('Prepara').first().json.image_b64, candidate_url: Array.isArray($json.output) ? $json.output[0] : $json.output, save_as: $('Prepara').first().json.image_id + '_D3' }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Record D3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        760
+      ],
+      "parameters": {
+        "jsCode": "\n// VariantResult for D3: no diagnosis, no modules — one pseudo-step so the tally can\n// count gate rejections the same way for every family.\nconst req = $('D3: richiesta').first().json;\nlet pred = $('D3: Replicate').first().json;\ntry { const last = $('D3: conta').first().json; if (last && last.id === pred.id) pred = last; } catch (e) {}\nconst image_id = req.image_id;\nconst predict_time = (pred.metrics && pred.metrics.predict_time) || 0;\nconst cost_usd = Number((predict_time * 0.000725).toFixed(5));\nconst latency_ms = Date.now() - req.t0;\nlet g = null;\ntry { g = $('D3: gate').first().json; if (g && g.image_id && g.image_id !== image_id) g = null; } catch (e) {}\nconst ok = pred.status === 'succeeded' && g && g.fidelity;\nconst status = !ok ? (pred.status === 'processing' ? 'timeout' : 'error') : (g.fidelity.passed ? 'accepted' : 'rejected_fidelity');\nconst v = { image_id, variant: \"D3\", label: 'Generativo', model: 'sdxl-controlnet', source: 'model',\n  output_path: ok ? `dataset/processed/${image_id}_D3.jpg` : null, output_b64: ok ? g.image_b64 : null,\n  params: { strength: 0.35 }, plan: null, fidelity: ok ? g.fidelity : null,\n  // What it did, read off the pixels (a black box reports no decisions): one row per\n  // module, 'applied' when the measured change is beyond what re-encoding alone causes.\n  steps: (() => {\n    const m = (ok && g.measured_changes) || {};\n    const passed = ok ? g.fidelity.passed : null;\n    const row = (module, needed, params) => ({ module, needed, applied: needed && Boolean(passed), passed: needed ? passed : null, retried: false, fidelity: needed && ok ? g.fidelity : null, params: needed ? params : null });\n    return [\n      row('Risoluzione', (m.scale || 1) >= 1.5, { scale: m.scale }),\n      row('Colore', m.cast_before !== undefined && Math.abs(m.cast_after - m.cast_before) >= 1.5, { cast: `${m.cast_before} -> ${m.cast_after}` }),\n      row('Luce', Math.abs(m.luminance_delta || 0) >= 5, { luminanza: (m.luminance_delta > 0 ? '+' : '') + m.luminance_delta, contrasto: (m.contrast_delta > 0 ? '+' : '') + m.contrast_delta }),\n      row('Pulizia', m.noise_before !== undefined && m.noise_after < m.noise_before * 0.8, { rumore: `${m.noise_before} -> ${m.noise_after}` }),\n      row('Raddrizza', Math.abs((m.tilt_after || 0) - (m.tilt_before || 0)) >= 1, { tilt: `${m.tilt_before} -> ${m.tilt_after}` }),\n      row('Nitidezza', m.sharpness_ratio !== undefined && Math.abs(m.sharpness_ratio - 1) >= 0.2, { nitidezza: `x${m.sharpness_ratio}` }),\n    ];\n  })(),\n  measured_changes: ok ? g.measured_changes : null,\n  applied: ok && g.fidelity.passed ? ['Generativo'] : [], ai_reconstructed: true, crop_pct: 0,\n  defects: [], advice: [], reason: 'Ridisegno generativo: nessuna diagnosi, il modello decide da solo cosa cambiare.', recommendation: 'apply', plan_fixes: [],\n  cost_usd, latency_ms, iterations: 1, review_verdict: null, status, error: ok ? null : (pred.error || pred.status || 'failed') };\nconst prev = [];\nreturn { json: { image_id, variants: [...prev, v], judge: [] } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "D3: shrink",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        760
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/prepare",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $('Prepara').first().json.image_b64, max_side: 1024 }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload": {
+      "main": [
+        [
+          {
+            "node": "Prepara",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara": {
+      "main": [
+        [
+          {
+            "node": "Rispondi subito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rispondi subito": {
+      "main": [
+        [
+          {
+            "node": "D1: piano",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "D2: richiesta",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "D3: shrink",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D1: piano": {
+      "main": [
+        [
+          {
+            "node": "D1: Correggi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D1: Correggi": {
+      "main": [
+        [
+          {
+            "node": "Record D1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record D1": {
+      "main": [
+        [
+          {
+            "node": "Attendi le 3 versioni",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: richiesta": {
+      "main": [
+        [
+          {
+            "node": "D2: modello",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: modello": {
+      "main": [
+        [
+          {
+            "node": "D2: lettura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: lettura": {
+      "main": [
+        [
+          {
+            "node": "D2: piano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: piano": {
+      "main": [
+        [
+          {
+            "node": "D2: Correggi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: Correggi": {
+      "main": [
+        [
+          {
+            "node": "D2: verifica richiesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: verifica richiesta": {
+      "main": [
+        [
+          {
+            "node": "D2: verifica modello",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: verifica modello": {
+      "main": [
+        [
+          {
+            "node": "D2: verifica lettura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: verifica lettura": {
+      "main": [
+        [
+          {
+            "node": "D2: secondo giro?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: secondo giro?": {
+      "main": [
+        [
+          {
+            "node": "D2: piano 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "D2: tieni il primo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: piano 2": {
+      "main": [
+        [
+          {
+            "node": "D2: Correggi 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: Correggi 2": {
+      "main": [
+        [
+          {
+            "node": "Record D2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D2: tieni il primo": {
+      "main": [
+        [
+          {
+            "node": "Record D2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record D2": {
+      "main": [
+        [
+          {
+            "node": "Attendi le 3 versioni",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "D3: richiesta": {
+      "main": [
+        [
+          {
+            "node": "D3: Replicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: Replicate": {
+      "main": [
+        [
+          {
+            "node": "D3: succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: succeeded?": {
+      "main": [
+        [
+          {
+            "node": "D3: gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "D3: in corso?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: in corso?": {
+      "main": [
+        [
+          {
+            "node": "D3: attendi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record D3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: attendi": {
+      "main": [
+        [
+          {
+            "node": "D3: stato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: stato": {
+      "main": [
+        [
+          {
+            "node": "D3: conta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: conta": {
+      "main": [
+        [
+          {
+            "node": "D3: succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: gate": {
+      "main": [
+        [
+          {
+            "node": "Record D3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: shrink": {
+      "main": [
+        [
+          {
+            "node": "D3: richiesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record D3": {
+      "main": [
+        [
+          {
+            "node": "Attendi le 3 versioni",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Attendi le 3 versioni": {
+      "main": [
+        [
+          {
+            "node": "Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record": {
+      "main": [
+        [
+          {
+            "node": "Salva run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

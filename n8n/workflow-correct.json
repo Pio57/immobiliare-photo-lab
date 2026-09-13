@@ -1,0 +1,1652 @@
+{
+  "name": "photo-lab Correggi (router)",
+  "nodes": [
+    {
+      "name": "sticky Correggi - il router delle correzioni",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        -260
+      ],
+      "parameters": {
+        "content": "## Correggi - il router delle correzioni\nUn modulo per difetto, in sequenza. Ogni modulo parte SOLO se il piano lo chiede, applica il suo parametro sopra quelli gia' accettati, ripartendo sempre dall'originale, e passa dal gate di fedelta'. Bocciato: un tentativo con i valori conservativi suggeriti da cv-service, poi il modulo viene saltato. Foto solo storta = passa solo da Raddrizza. Chiamato dal prodotto e dall'esperimento: una sola implementazione.",
+        "height": 220,
+        "width": 5400,
+        "color": 4
+      }
+    },
+    {
+      "name": "Da chi chiama",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -40,
+        60
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "name": "Stato iniziale",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        60
+      ],
+      "parameters": {
+        "jsCode": "\n// State that travels through the four modules. `accepted` grows with every module\n// that passes its gate; `steps` records what happened to each one.\nconst j = $input.item.json;\nconst plan = { ...{\"gamma\": 1.0, \"clahe_clip\": 0.0, \"white_balance\": 0.0, \"denoise\": 0, \"rotate_deg\": 0.0, \"sharpen\": 0.0}, ...(j.plan || {}) };\nconst modules = [\"Colore\", \"Luce\", \"Pulizia\", \"Raddrizza\", \"Nitidezza\"];\nreturn { json: { input: j.input, save_as: j.save_as || null, plan, ai_reconstructed: false,\n  accepted: { recommendation: plan.recommendation || 'apply' },\n  steps: [{ module: 'Risoluzione', needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null },\n          ...modules.map(m => ({ module: m, needed: false, applied: false, passed: null, retried: false, fidelity: null, params: null }))],\n  retry: {} } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "sticky Risoluzione",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -40
+      ],
+      "parameters": {
+        "content": "## Risoluzione\nSolo sotto 1000 px (screenshot, inoltri). Real-ESRGAN x2 su Replicate: inventa texture, il gate non puo' vederlo. L'output porta ai_reconstructed=true e l'agente lo legge.",
+        "height": 560,
+        "width": 1180,
+        "color": 7
+      }
+    },
+    {
+      "name": "Risoluzione: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.input.low_resolution === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Risoluzione: richiesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        160
+      ],
+      "parameters": {
+        "jsCode": "\n// Real-ESRGAN x2: image inline (small by definition: this lane runs only below 1000 px)\n// or by dataset URL in the batch.\nconst s = $input.item.json;\nconst image = s.input.image_id ? `${\"https://86d2-147-53-207-91.ngrok-free.app\"}/dataset/${s.input.image_id}/file` : `data:image/jpeg;base64,${s.input.image_b64}`;\nreturn { json: { ...s, _t0: Date.now(), body: { version: \"b3ef194191d13140337468c916c2c5b96dd0cb06dffc032a022a31807f6a5ea8\", input: { image, scale: 2, face_enhance: false } } } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Risoluzione: Real-ESRGAN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.replicate.com/v1/predictions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "wait=60"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Risoluzione: succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.status === 'succeeded' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Risoluzione: ricevi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/gate_remote",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ original_b64: $('Risoluzione: richiesta').first().json.input.image_b64, image_id: $('Risoluzione: richiesta').first().json.input.image_id, candidate_url: Array.isArray($json.output) ? $json.output[0] : $json.output }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Risoluzione: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        60
+      ],
+      "parameters": {
+        "jsCode": "\n// The upscaled photo becomes the working image for every module after this one.\n// Its 'fidelity' against the input is informational: super-resolution invents\n// texture below the scale the gate measures, so the gate cannot object. What\n// protects the reader is the label (ai_reconstructed), not the number.\nconst s = JSON.parse(JSON.stringify($('Risoluzione: richiesta').first().json));\nconst pred = $('Risoluzione: Real-ESRGAN').first().json;\nconst r = $input.item.json;\ndelete s.body;\ns.input = { ...s.input, image_b64: r.image_b64, image_id: undefined };\ns.ai_reconstructed = true;\n// The plan was made for the small, blocky input. The upscaled photo is already\n// smooth and block-free: denoising it again turns fabric into wax, and a strong\n// unsharp mask redraws it in patches (measured: local-minimum fidelity 0.85 -> 0.92).\nconst adjusted = [];\nif (s.plan.denoise > 0) { adjusted.push(`denoise ${s.plan.denoise} -> 0`); s.plan.denoise = 0; }\nif (s.plan.clahe_clip > 1) { adjusted.push(`clahe_clip ${s.plan.clahe_clip} -> 1`); s.plan.clahe_clip = 1; }\nif (s.plan.sharpen > 0.2) { adjusted.push(`sharpen ${s.plan.sharpen} -> 0.2`); s.plan.sharpen = 0.2; }\nconst cost = Number((((pred.metrics && pred.metrics.predict_time) || 0) * 0.000225).toFixed(5));\nObject.assign(s.steps[0], { needed: true, applied: true, passed: true, fidelity: r.fidelity,\n  params: { scale: 2, cost_usd: cost, latency_ms: Date.now() - s._t0, plan_adjusted: adjusted.join(', ') || undefined } });\ndelete s._t0;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Risoluzione: saltata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Replicate failed or timed out: go on with the photo as it is, and say so.\nconst s = JSON.parse(JSON.stringify($('Risoluzione: richiesta').first().json));\ndelete s.body; delete s._t0;\nObject.assign(s.steps[0], { needed: true, applied: false, passed: false, params: { error: String(($input.item.json.error || $input.item.json.status || 'failed')).slice(0, 120) } });\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "sticky Colore",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        -40
+      ],
+      "parameters": {
+        "content": "## Colore\nwhite_balance",
+        "height": 560,
+        "width": 600,
+        "color": 5
+      }
+    },
+    {
+      "name": "Colore: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.plan.white_balance > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Colore: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1860,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { white_balance: $json.plan.white_balance }) }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Colore: gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.fidelity.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Colore: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        20
+      ],
+      "parameters": {
+        "jsCode": "\n// Colore passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Colore: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Colore: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Colore\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { white_balance: r.params.white_balance } });\nfor (const k of [\"white_balance\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Colore: bocciata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Colore failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Colore: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Colore: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Colore\");\nconst key = \"Colore\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"white_balance\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { white_balance: r.params.white_balance } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Colore: riprova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        340
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json._again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "sticky Luce",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        -40
+      ],
+      "parameters": {
+        "content": "## Luce\nlivelli + gamma + clahe_clip",
+        "height": 560,
+        "width": 600,
+        "color": 3
+      }
+    },
+    {
+      "name": "Luce: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.plan.gamma !== 1 || $json.plan.clahe_clip > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Luce: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { gamma: $json.plan.gamma, clahe_clip: $json.plan.clahe_clip }) }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Luce: gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.fidelity.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Luce: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        20
+      ],
+      "parameters": {
+        "jsCode": "\n// Luce passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Luce: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Luce: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Luce\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { gamma: r.params.gamma, clahe_clip: r.params.clahe_clip } });\nfor (const k of [\"gamma\", \"clahe_clip\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Luce: bocciata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Luce failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Luce: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Luce: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Luce\");\nconst key = \"Luce\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"gamma\", \"clahe_clip\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { gamma: r.params.gamma, clahe_clip: r.params.clahe_clip } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Luce: riprova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        340
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json._again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "sticky Pulizia",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        -40
+      ],
+      "parameters": {
+        "content": "## Pulizia\ndenoise",
+        "height": 560,
+        "width": 600,
+        "color": 6
+      }
+    },
+    {
+      "name": "Pulizia: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.plan.denoise > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Pulizia: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { denoise: $json.plan.denoise }) }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Pulizia: gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.fidelity.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Pulizia: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        20
+      ],
+      "parameters": {
+        "jsCode": "\n// Pulizia passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Pulizia: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Pulizia: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Pulizia\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { denoise: r.params.denoise } });\nfor (const k of [\"denoise\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Pulizia: bocciata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Pulizia failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Pulizia: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Pulizia: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Pulizia\");\nconst key = \"Pulizia\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"denoise\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { denoise: r.params.denoise } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Pulizia: riprova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        340
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json._again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "sticky Raddrizza",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3460,
+        -40
+      ],
+      "parameters": {
+        "content": "## Raddrizza\nrotate_deg",
+        "height": 560,
+        "width": 600,
+        "color": 2
+      }
+    },
+    {
+      "name": "Raddrizza: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.plan.rotate_deg !== 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Raddrizza: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3720,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { rotate_deg: $json.plan.rotate_deg }) }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Raddrizza: gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.fidelity.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Raddrizza: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        20
+      ],
+      "parameters": {
+        "jsCode": "\n// Raddrizza passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg, crop_pct: r.crop_pct } });\nfor (const k of [\"rotate_deg\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Raddrizza: bocciata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3720,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Raddrizza failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Raddrizza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Raddrizza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Raddrizza\");\nconst key = \"Raddrizza\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"rotate_deg\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { rotate_deg: r.params.rotate_deg } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Raddrizza: riprova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        340
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json._again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "sticky Nitidezza",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4080,
+        -40
+      ],
+      "parameters": {
+        "content": "## Nitidezza\nsharpen (unsharp mask)",
+        "height": 560,
+        "width": 600,
+        "color": 4
+      }
+    },
+    {
+      "name": "Nitidezza: serve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4140,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.plan.sharpen > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Nitidezza: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4340,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, return_image: false, params: Object.assign({}, $json.accepted, { sharpen: $json.plan.sharpen }) }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Nitidezza: gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4540,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.fidelity.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Nitidezza: ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4540,
+        20
+      ],
+      "parameters": {
+        "jsCode": "\n// Nitidezza passed its gate: its PLANNED parameters join the accepted set (the\n// resolved ones may be halved by `mild`; storing them would halve twice downstream).\n\nlet s = null;\ntry { const again = $('Nitidezza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Nitidezza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Nitidezza\");\nObject.assign(step, { needed: true, applied: true, passed: true, fidelity: r.fidelity, params: { sharpen: r.params.sharpen } });\nfor (const k of [\"sharpen\"]) s.accepted[k] = s.plan[k];\ns._again = false;\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Nitidezza: bocciata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4340,
+        340
+      ],
+      "parameters": {
+        "jsCode": "\n// Nitidezza failed its gate. First time: retry once with the conservative values\n// cv-service suggests (the self-check loop). Second time: skip the module, keep\n// what was accepted so far. The photo is never left worse than the previous step.\n\nlet s = null;\ntry { const again = $('Nitidezza: riprova?').first().json; if (again._again) s = again; } catch (e) {}\nif (!s) s = $('Nitidezza: serve?').first().json;\ns = JSON.parse(JSON.stringify(s));\nconst r = $input.item.json;\nconst step = s.steps.find(x => x.module === \"Nitidezza\");\nconst key = \"Nitidezza\";\nif (!s.retry[key] && r.suggested_conservative_params) {\n  s.retry[key] = true;\n  for (const k of [\"sharpen\"]) s.plan[k] = r.suggested_conservative_params[k];\n  Object.assign(step, { needed: true, retried: true });\n  s._again = true;\n} else {\n  Object.assign(step, { needed: true, applied: false, passed: false, fidelity: r.fidelity, params: { sharpen: r.params.sharpen } });\n  s._again = false;\n}\nreturn { json: s };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Nitidezza: riprova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4540,
+        340
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json._again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "sticky Finale",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4700,
+        -40
+      ],
+      "parameters": {
+        "content": "## Finale\nUna sola applicazione dei parametri accettati, dall'originale: e' l'immagine restituita e il suo gate e' quello cumulativo.",
+        "height": 560,
+        "width": 620,
+        "color": 7
+      }
+    },
+    {
+      "name": "Finale: stato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4760,
+        60
+      ],
+      "parameters": {
+        "jsCode": "return { json: $input.item.json };",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "name": "Finale: applica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4960,
+        60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://86d2-147-53-207-91.ngrok-free.app/apply",
+        "options": {
+          "timeout": 180000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_b64: $json.input.image_b64, image_id: $json.input.image_id, save_as: $json.save_as, return_image: true, params: $json.accepted }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 8,
+      "waitBetweenTries": 15000
+    },
+    {
+      "name": "Risultato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5160,
+        60
+      ],
+      "parameters": {
+        "jsCode": "\n// What Correggi returns to the caller: the corrected photo (or the untouched original\n// when nothing was applied), the accepted parameters, the per-module record.\nconst s = $('Finale: stato').first().json;\nconst r = $input.item.json;\nconst applied = s.steps.filter(x => x.applied).map(x => x.module);\nreturn { json: { output_b64: r.image_b64 || null, output_path: r.output_path || null, params: r.params, fidelity: r.fidelity, crop_pct: r.crop_pct || 0,\n  steps: s.steps.map(({ module, needed, applied, passed, retried, fidelity, params }) => ({ module, needed, applied, passed, retried, fidelity, params })),\n  applied, changed: applied.length > 0, ai_reconstructed: s.ai_reconstructed === true } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    }
+  ],
+  "connections": {
+    "Da chi chiama": {
+      "main": [
+        [
+          {
+            "node": "Stato iniziale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stato iniziale": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: serve?": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: richiesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Colore: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: richiesta": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: Real-ESRGAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: Real-ESRGAN": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: ricevi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Risoluzione: saltata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: ricevi": {
+      "main": [
+        [
+          {
+            "node": "Risoluzione: ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: ok": {
+      "main": [
+        [
+          {
+            "node": "Colore: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risoluzione: saltata": {
+      "main": [
+        [
+          {
+            "node": "Colore: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: serve?": {
+      "main": [
+        [
+          {
+            "node": "Colore: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Luce: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: applica": {
+      "main": [
+        [
+          {
+            "node": "Colore: gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: gate": {
+      "main": [
+        [
+          {
+            "node": "Colore: ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Colore: bocciata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: bocciata": {
+      "main": [
+        [
+          {
+            "node": "Colore: riprova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: riprova?": {
+      "main": [
+        [
+          {
+            "node": "Colore: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Luce: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Colore: ok": {
+      "main": [
+        [
+          {
+            "node": "Luce: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: serve?": {
+      "main": [
+        [
+          {
+            "node": "Luce: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pulizia: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: applica": {
+      "main": [
+        [
+          {
+            "node": "Luce: gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: gate": {
+      "main": [
+        [
+          {
+            "node": "Luce: ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Luce: bocciata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: bocciata": {
+      "main": [
+        [
+          {
+            "node": "Luce: riprova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: riprova?": {
+      "main": [
+        [
+          {
+            "node": "Luce: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pulizia: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Luce: ok": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: serve?": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raddrizza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: applica": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: gate": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pulizia: bocciata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: bocciata": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: riprova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: riprova?": {
+      "main": [
+        [
+          {
+            "node": "Pulizia: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raddrizza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulizia: ok": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: serve?": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nitidezza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: applica": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: gate": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raddrizza: bocciata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: bocciata": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: riprova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: riprova?": {
+      "main": [
+        [
+          {
+            "node": "Raddrizza: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nitidezza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raddrizza: ok": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: serve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: serve?": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finale: stato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: applica": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: gate": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nitidezza: bocciata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: bocciata": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: riprova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: riprova?": {
+      "main": [
+        [
+          {
+            "node": "Nitidezza: applica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finale: stato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nitidezza: ok": {
+      "main": [
+        [
+          {
+            "node": "Finale: stato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finale: stato": {
+      "main": [
+        [
+          {
+            "node": "Finale: applica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finale: applica": {
+      "main": [
+        [
+          {
+            "node": "Risultato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
