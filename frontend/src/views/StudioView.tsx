@@ -65,7 +65,10 @@ export function StudioView() {
         void load(info, tester, index + 1, answered) // nothing to judge on this photo
         return
       }
-      setState((s) => (s.kind === 'photo' && s.index === index ? { ...s, result, versions } : s))
+      // ?q=quality|best jumps to that question on the first photo (screenshots)
+      const jump = index === 0 ? new URLSearchParams(window.location.search).get('q') : null
+      const step: Step = jump === 'quality' ? { kind: 'quality', i: 0 } : jump === 'best' ? { kind: 'best' } : { kind: 'realism', i: 0 }
+      setState((s) => (s.kind === 'photo' && s.index === index ? { ...s, result, versions, step } : s))
     } catch (err) {
       setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
     }
