@@ -26,8 +26,8 @@ PDF = HERE / "immobiliare-photo-lab-nota.pdf"
 
 CSS = """
 @page { size: A4; margin: 11mm 12mm 11mm 12mm; }
-html { font-size: 8.8pt; }
-body { font-family: "Segoe UI", "Inter", system-ui, sans-serif; color: #241f1b; line-height: 1.33; max-width: 100%; }
+html { font-size: 8.6pt; }
+body { font-family: "Segoe UI", "Inter", system-ui, sans-serif; color: #241f1b; line-height: 1.3; max-width: 100%; }
 h1 { font-family: Georgia, "Fraunces", serif; font-weight: 600; font-size: 17pt; margin: 0 0 2pt; }
 h1 + p em { color: #7d7265; }
 h2 { font-family: Georgia, serif; font-weight: 600; font-size: 11.5pt; margin: 9pt 0 3pt; page-break-after: avoid; color: #241f1b; }
@@ -41,7 +41,7 @@ pre { background: #f3eee6; padding: 8pt 10pt; border-radius: 6px; font-size: 8.8
 pre code { background: none; padding: 0; }
 figure { margin: 5pt 0 7pt; page-break-inside: avoid; text-align: center; }
 figure img { max-width: 100%; max-height: 118mm; border: 1px solid #e8e0d4; border-radius: 6px; }
-figure.wide img { max-height: 36mm; }
+figure.wide img { max-height: 32mm; }
 figcaption { font-size: 7.8pt; color: #7d7265; margin-top: 4pt; text-align: center; }
 hr { border: 0; border-top: 1px solid #d6cbbb; margin: 18pt 0; page-break-after: always; }
 a { color: #a94430; text-decoration: none; }
