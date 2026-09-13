@@ -578,11 +578,15 @@ def generative_lane(nodes: list, connections: dict, *, src: str, x: int, y: int,
     request_js = f"""
 // {v}: constrained img2img (SDXL + ControlNet canny). The prompt asks for the same
 // corrections the modules make, in words; the model decides the pixels.
+// The hosted model has a safety checker with no switch, and it misfires on beds and
+// clothes ("NSFW content detected"): the seed moves on each retry (see 'nsfw?').
 const prep = $('Prepara').first().json;
-return {{ json: {{ image_id: prep.image_id, t0: Date.now(), body: {{ version: {js_string(GEN_VERSION)}, input: {{
+let attempt = 0;
+try {{ const r = $('{v}: nuovo seed').first().json; if (r && r.image_id === prep.image_id) attempt = r._attempt || 0; }} catch (e) {{}}
+return {{ json: {{ image_id: prep.image_id, t0: Date.now(), _attempt: attempt, body: {{ version: {js_string(GEN_VERSION)}, input: {{
   image: {image_expr}, prompt: {js_string(GEN_PROMPT)}, negative_prompt: {js_string(GEN_NEGATIVE)},
   img2img: true, strength: {GEN_STRENGTH}, condition_scale: 1.1, guidance_scale: 5, num_inference_steps: 30,
-  refine: 'no_refiner', apply_watermark: false, seed: 42 }} }} }} }};
+  refine: 'no_refiner', apply_watermark: false, seed: 42 + attempt * 1000 }} }} }} }};
 """
     record_js_gen = f"""
 // VariantResult for {v}: no diagnosis, no modules — one pseudo-step so the tally can
@@ -596,7 +600,9 @@ const cost_usd = Number((predict_time * {GEN_PRICE_PER_SEC}).toFixed(5));
 const latency_ms = Date.now() - req.t0;
 let g = null;
 try {{ g = $('{v}: gate').first().json; if (g && g.image_id && g.image_id !== image_id) g = null; }} catch (e) {{}}
-const ok = pred.status === 'succeeded' && g && g.fidelity;
+// The gate ran only on a succeeded prediction: its answer for this image is the proof,
+// whatever run of 'Replicate' .first() happens to return after a retry.
+const ok = Boolean(g && g.fidelity);
 const status = !ok ? (pred.status === 'processing' ? 'timeout' : 'error') : (g.fidelity.passed ? 'accepted' : 'rejected_fidelity');
 const v = {{ image_id, variant: {js_string(v)}, label: 'Generativo', model: 'sdxl-controlnet', source: 'model',
   output_path: ok ? `dataset/processed/${{image_id}}_{v}.jpg` : null, output_b64: ok ? g.image_b64 : null,
@@ -646,6 +652,14 @@ return {{ json: {{ image_id, variants: [...prev, v], judge: [] }} }};
 let n = 0; try {{ n = $('{v}: conta').first().json._polls || 0; }} catch (e) {{}}
 return {{ json: {{ ...$input.item.json, _polls: n + 1 }} }};
 """, x + 440, y + 320),
+        # The safety checker of the hosted model misfires on bedrooms (beds, clothes on the
+        # bed): a failed prediction that says NSFW is retried up to twice with another seed.
+        if_bool(f"{v}: nsfw?", f"String($json.error || '').includes('NSFW') && (($('{v}: richiesta').first().json._attempt || 0) < 2)", x + 660, y + 180),
+        code(f"{v}: nuovo seed", f"""
+// Another seed for the same request; the counter travels through this node.
+const req = $('{v}: richiesta').first().json;
+return {{ json: {{ image_id: req.image_id, _attempt: (req._attempt || 0) + 1 }} }};
+""", x + 880, y + 180),
         http_cv(f"{v}: gate", f"{cv_url}/gate_remote",
                 "={{ JSON.stringify({ " + original_ref_expr + ", candidate_url: Array.isArray($json.output) ? $json.output[0] : $json.output, save_as: " + save_as_expr + " }) }}",
                 x + 660, y),
@@ -657,7 +671,10 @@ return {{ json: {{ ...$input.item.json, _polls: n + 1 }} }};
     connect(connections, f"{v}: succeeded?", f"{v}: in corso?", output=1)
     connect(connections, f"{v}: in corso?", f"{v}: attendi", output=0)
     chain(connections, [f"{v}: attendi", f"{v}: stato", f"{v}: conta", f"{v}: succeeded?"])  # the polling loop
-    connect(connections, f"{v}: in corso?", f"Record {v}", output=1)
+    connect(connections, f"{v}: in corso?", f"{v}: nsfw?", output=1)
+    connect(connections, f"{v}: nsfw?", f"{v}: nuovo seed", output=0)
+    connect(connections, f"{v}: nuovo seed", f"{v}: richiesta")  # the NSFW retry loop
+    connect(connections, f"{v}: nsfw?", f"Record {v}", output=1)
     connect(connections, f"{v}: gate", f"Record {v}")
     return f"Record {v}"
 

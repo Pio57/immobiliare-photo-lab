@@ -515,7 +515,7 @@
         760
       ],
       "parameters": {
-        "jsCode": "\n// D3: constrained img2img (SDXL + ControlNet canny). The prompt asks for the same\n// corrections the modules make, in words; the model decides the pixels.\nconst prep = $('Prepara').first().json;\nreturn { json: { image_id: prep.image_id, t0: Date.now(), body: { version: \"3bb13fe1c33c35987b33792b01b71ed6529d03f165d1c2416375859f09ca9fef\", input: {\n  image: `data:image/jpeg;base64,${$('D3: shrink').first().json.image_b64}`, prompt: \"the same room, real estate listing photo, well exposed, natural white balance, no noise, sharp and clean, realistic, unchanged furniture, walls and layout\", negative_prompt: \"cartoon, painting, render, blurry, extra furniture, different room, repainted walls, text, watermark\",\n  img2img: true, strength: 0.35, condition_scale: 1.1, guidance_scale: 5, num_inference_steps: 30,\n  refine: 'no_refiner', apply_watermark: false, seed: 42 } } } };\n",
+        "jsCode": "\n// D3: constrained img2img (SDXL + ControlNet canny). The prompt asks for the same\n// corrections the modules make, in words; the model decides the pixels.\n// The hosted model has a safety checker with no switch, and it misfires on beds and\n// clothes (\"NSFW content detected\"): the seed moves on each retry (see 'nsfw?').\nconst prep = $('Prepara').first().json;\nlet attempt = 0;\ntry { const r = $('D3: nuovo seed').first().json; if (r && r.image_id === prep.image_id) attempt = r._attempt || 0; } catch (e) {}\nreturn { json: { image_id: prep.image_id, t0: Date.now(), _attempt: attempt, body: { version: \"3bb13fe1c33c35987b33792b01b71ed6529d03f165d1c2416375859f09ca9fef\", input: {\n  image: `data:image/jpeg;base64,${$('D3: shrink').first().json.image_b64}`, prompt: \"the same room, real estate listing photo, well exposed, natural white balance, no noise, sharp and clean, realistic, unchanged furniture, walls and layout\", negative_prompt: \"cartoon, painting, render, blurry, extra furniture, different room, repainted walls, text, watermark\",\n  img2img: true, strength: 0.35, condition_scale: 1.1, guidance_scale: 5, num_inference_steps: 30,\n  refine: 'no_refiner', apply_watermark: false, seed: 42 + attempt * 1000 } } } };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -666,6 +666,51 @@
       }
     },
     {
+      "name": "D3: nsfw?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        940
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ String($json.error || '').includes('NSFW') && (($('D3: richiesta').first().json._attempt || 0) < 2) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "D3: nuovo seed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        940
+      ],
+      "parameters": {
+        "jsCode": "\n// Another seed for the same request; the counter travels through this node.\nconst req = $('D3: richiesta').first().json;\nreturn { json: { image_id: req.image_id, _attempt: (req._attempt || 0) + 1 } };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
       "name": "D3: gate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -696,7 +741,7 @@
         760
       ],
       "parameters": {
-        "jsCode": "\n// VariantResult for D3: no diagnosis, no modules — one pseudo-step so the tally can\n// count gate rejections the same way for every family.\nconst req = $('D3: richiesta').first().json;\nlet pred = $('D3: Replicate').first().json;\ntry { const last = $('D3: conta').first().json; if (last && last.id === pred.id) pred = last; } catch (e) {}\nconst image_id = req.image_id;\nconst predict_time = (pred.metrics && pred.metrics.predict_time) || 0;\nconst cost_usd = Number((predict_time * 0.000725).toFixed(5));\nconst latency_ms = Date.now() - req.t0;\nlet g = null;\ntry { g = $('D3: gate').first().json; if (g && g.image_id && g.image_id !== image_id) g = null; } catch (e) {}\nconst ok = pred.status === 'succeeded' && g && g.fidelity;\nconst status = !ok ? (pred.status === 'processing' ? 'timeout' : 'error') : (g.fidelity.passed ? 'accepted' : 'rejected_fidelity');\nconst v = { image_id, variant: \"D3\", label: 'Generativo', model: 'sdxl-controlnet', source: 'model',\n  output_path: ok ? `dataset/processed/${image_id}_D3.jpg` : null, output_b64: ok ? g.image_b64 : null,\n  params: { strength: 0.35 }, plan: null, fidelity: ok ? g.fidelity : null,\n  // What it did, read off the pixels (a black box reports no decisions): one row per\n  // module, 'applied' when the measured change is beyond what re-encoding alone causes.\n  steps: (() => {\n    const m = (ok && g.measured_changes) || {};\n    const passed = ok ? g.fidelity.passed : null;\n    const row = (module, needed, params) => ({ module, needed, applied: needed && Boolean(passed), passed: needed ? passed : null, retried: false, fidelity: needed && ok ? g.fidelity : null, params: needed ? params : null });\n    return [\n      row('Risoluzione', (m.scale || 1) >= 1.5, { scale: m.scale }),\n      row('Colore', m.cast_before !== undefined && Math.abs(m.cast_after - m.cast_before) >= 1.5, { cast: `${m.cast_before} -> ${m.cast_after}` }),\n      row('Luce', Math.abs(m.luminance_delta || 0) >= 5, { luminanza: (m.luminance_delta > 0 ? '+' : '') + m.luminance_delta, contrasto: (m.contrast_delta > 0 ? '+' : '') + m.contrast_delta }),\n      row('Pulizia', m.noise_before !== undefined && m.noise_after < m.noise_before * 0.8, { rumore: `${m.noise_before} -> ${m.noise_after}` }),\n      row('Raddrizza', Math.abs((m.tilt_after || 0) - (m.tilt_before || 0)) >= 1, { tilt: `${m.tilt_before} -> ${m.tilt_after}` }),\n      row('Nitidezza', m.sharpness_ratio !== undefined && Math.abs(m.sharpness_ratio - 1) >= 0.2, { nitidezza: `x${m.sharpness_ratio}` }),\n    ];\n  })(),\n  measured_changes: ok ? g.measured_changes : null,\n  applied: ok && g.fidelity.passed ? ['Generativo'] : [], ai_reconstructed: true, crop_pct: 0,\n  defects: [], advice: [], reason: 'Ridisegno generativo: nessuna diagnosi, il modello decide da solo cosa cambiare.', recommendation: 'apply', plan_fixes: [],\n  cost_usd, latency_ms, iterations: 1, review_verdict: null, status, error: ok ? null : (pred.error || pred.status || 'failed') };\nconst prev = [];\nreturn { json: { image_id, variants: [...prev, v], judge: [] } };\n",
+        "jsCode": "\n// VariantResult for D3: no diagnosis, no modules — one pseudo-step so the tally can\n// count gate rejections the same way for every family.\nconst req = $('D3: richiesta').first().json;\nlet pred = $('D3: Replicate').first().json;\ntry { const last = $('D3: conta').first().json; if (last && last.id === pred.id) pred = last; } catch (e) {}\nconst image_id = req.image_id;\nconst predict_time = (pred.metrics && pred.metrics.predict_time) || 0;\nconst cost_usd = Number((predict_time * 0.000725).toFixed(5));\nconst latency_ms = Date.now() - req.t0;\nlet g = null;\ntry { g = $('D3: gate').first().json; if (g && g.image_id && g.image_id !== image_id) g = null; } catch (e) {}\n// The gate ran only on a succeeded prediction: its answer for this image is the proof,\n// whatever run of 'Replicate' .first() happens to return after a retry.\nconst ok = Boolean(g && g.fidelity);\nconst status = !ok ? (pred.status === 'processing' ? 'timeout' : 'error') : (g.fidelity.passed ? 'accepted' : 'rejected_fidelity');\nconst v = { image_id, variant: \"D3\", label: 'Generativo', model: 'sdxl-controlnet', source: 'model',\n  output_path: ok ? `dataset/processed/${image_id}_D3.jpg` : null, output_b64: ok ? g.image_b64 : null,\n  params: { strength: 0.35 }, plan: null, fidelity: ok ? g.fidelity : null,\n  // What it did, read off the pixels (a black box reports no decisions): one row per\n  // module, 'applied' when the measured change is beyond what re-encoding alone causes.\n  steps: (() => {\n    const m = (ok && g.measured_changes) || {};\n    const passed = ok ? g.fidelity.passed : null;\n    const row = (module, needed, params) => ({ module, needed, applied: needed && Boolean(passed), passed: needed ? passed : null, retried: false, fidelity: needed && ok ? g.fidelity : null, params: needed ? params : null });\n    return [\n      row('Risoluzione', (m.scale || 1) >= 1.5, { scale: m.scale }),\n      row('Colore', m.cast_before !== undefined && Math.abs(m.cast_after - m.cast_before) >= 1.5, { cast: `${m.cast_before} -> ${m.cast_after}` }),\n      row('Luce', Math.abs(m.luminance_delta || 0) >= 5, { luminanza: (m.luminance_delta > 0 ? '+' : '') + m.luminance_delta, contrasto: (m.contrast_delta > 0 ? '+' : '') + m.contrast_delta }),\n      row('Pulizia', m.noise_before !== undefined && m.noise_after < m.noise_before * 0.8, { rumore: `${m.noise_before} -> ${m.noise_after}` }),\n      row('Raddrizza', Math.abs((m.tilt_after || 0) - (m.tilt_before || 0)) >= 1, { tilt: `${m.tilt_before} -> ${m.tilt_after}` }),\n      row('Nitidezza', m.sharpness_ratio !== undefined && Math.abs(m.sharpness_ratio - 1) >= 0.2, { nitidezza: `x${m.sharpness_ratio}` }),\n    ];\n  })(),\n  measured_changes: ok ? g.measured_changes : null,\n  applied: ok && g.fidelity.passed ? ['Generativo'] : [], ai_reconstructed: true, crop_pct: 0,\n  defects: [], advice: [], reason: 'Ridisegno generativo: nessuna diagnosi, il modello decide da solo cosa cambiare.', recommendation: 'apply', plan_fixes: [],\n  cost_usd, latency_ms, iterations: 1, review_verdict: null, status, error: ok ? null : (pred.error || pred.status || 'failed') };\nconst prev = [];\nreturn { json: { image_id, variants: [...prev, v], judge: [] } };\n",
         "mode": "runOnceForEachItem"
       }
     },
@@ -1012,7 +1057,7 @@
         ],
         [
           {
-            "node": "Record D3",
+            "node": "D3: nsfw?",
             "type": "main",
             "index": 0
           }
@@ -1046,6 +1091,35 @@
         [
           {
             "node": "D3: succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: nsfw?": {
+      "main": [
+        [
+          {
+            "node": "D3: nuovo seed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record D3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "D3: nuovo seed": {
+      "main": [
+        [
+          {
+            "node": "D3: richiesta",
             "type": "main",
             "index": 0
           }
