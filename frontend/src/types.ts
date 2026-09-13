@@ -157,6 +157,8 @@ export interface SummaryRow {
   latency_p95_ms: number
   error_rate: number
   fixes_rate: number
+  /** model families only: the model failed and the rules' plan was used instead */
+  fallback_rate: number
   gate_rejected_rate: number
   unchanged_rate: number
   keep_original_rate: number

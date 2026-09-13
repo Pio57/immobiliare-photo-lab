@@ -91,18 +91,19 @@ def test_choices_summary_and_cards(tmp_path, monkeypatch):
     assert [c["variant"] for c in cards["cards"]] == ["D2", "D1", "D3"]
     post = lambda **j: client.post("/choices", json={"image_id": "img_001", "tester": "T", **j})
     assert post(task="realism", variant="D3", answer="yes").json()["judgments"] == 1
+    assert post(task="realism", variant="D2", answer="no").status_code == 200
     assert post(task="quality", variant="D2", answer="4").status_code == 200
     assert post(task="quality", variant="D2", answer="9").status_code == 422
     assert post(task="best", variant="D2", shown=["D1", "D2", "D3"], order=["D2", "D1", "D3"]).status_code == 200
     s = client.get("/summary").json()
     d2 = next(r for r in s["variants"] if r["variant"] == "D2")
-    assert s["choices"] == 1 and s["judgments"] == 3 and d2["chosen"] == 1 and d2["shown"] == 1 and d2["mos"] == 4
+    assert s["choices"] == 1 and s["judgments"] == 4 and d2["chosen"] == 1 and d2["shown"] == 1 and d2["mos"] == 4
     assert d2["diagnosis"]["precision"] == 0.5 and d2["diagnosis"]["recall"] == 1.0  # tilt right, noise invented
-    assert d2["effective_rate"] == 1.0  # tilt labelled, Raddrizza applied
+    assert d2["effective_rate"] == 1.0 and d2["effective_n"] == 1  # rated 4, not altered
     d3 = next(r for r in s["variants"] if r["variant"] == "D3")
-    assert d3["gate_rejected_rate"] == 1.0 and d3["alteration_rate"] == 1.0 and d3["effective_rate"] == 0.0
+    assert d3["gate_rejected_rate"] == 1.0 and d3["alteration_rate"] == 1.0 and d3["effective_rate"] is None
     assert any(e["variant"] == "D3" for e in s["verdict"]["excluded"])
-    assert client.get("/study").json()["testers"] == {"T": 3}
+    assert client.get("/study").json()["testers"] == {"T": 4}
 
 
 def test_prepare_bounds_size_and_measures(room):

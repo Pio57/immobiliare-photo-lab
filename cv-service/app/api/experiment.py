@@ -38,13 +38,7 @@ MAX_ALTERATION = 0.10  # admission thresholds of the decision rule
 MAX_GATE_REJECTED = 0.10
 MAX_ERRORS = 0.10
 DEFECT_ALIASES = {"tungsten_cast": "color_cast"}  # labels.csv vocabulary -> diagnosis vocabulary
-# labelled defects a module can resolve; "compressed" is a condition of the input (the plan
-# reacts with caution: no CLAHE, little sharpening) rather than a defect to resolve, so it is
-# not counted against the output
-CORRECTABLE = {"underexposed", "backlit", "color_cast", "noise", "tilt", "low_resolution"}
-# which correction module resolves which labelled defect (Correggi lanes)
-DEFECT_MODULE = {"underexposed": "Luce", "backlit": "Luce", "color_cast": "Colore", "noise": "Pulizia",
-                 "tilt": "Raddrizza", "low_resolution": "Risoluzione"}
+EFFECTIVE_MIN_QUALITY = 4  # "output efficace": rated good or better, and not seen as altered
 DIAG_SET = {"underexposed", "backlit", "color_cast", "noise", "tilt", "low_resolution"}
 
 
@@ -201,30 +195,17 @@ def _labels() -> dict[str, set[str]]:
     return out
 
 
-def _effective(v: dict, truth: set[str]) -> bool:
-    """'Output efficace' against the hand labels: the labelled defects are resolved and
-    nothing was stopped by the gate. A rules/model version resolves a defect when the
-    module in charge of it ran and passed; the generative version rewrites every pixel,
-    so it resolves everything it was allowed to keep (passed the gate)."""
-    if v.get("status") in ("error", "timeout"):
-        return False
-    steps = v.get("steps") or []
-    if any(st.get("needed") and not st.get("applied") for st in steps):
-        return False
-    wanted = truth & CORRECTABLE
-    if v.get("variant") == "D3":
-        return v.get("status") == "accepted" if wanted else v.get("status") in ("accepted", "unchanged")
-    if v.get("status") == "rejected_fidelity":
-        return False
-    applied = {st.get("module") for st in steps if st.get("applied")}
-    return all(DEFECT_MODULE[d] in applied for d in wanted)
-
-
 @router.get("/summary")
 def summary() -> dict:
     runs_dir = _root() / "experiments" / "runs"
+    # the experiment is the study set (experiments/study-set.txt); uploads from the Prova
+    # view are product usage and stay out of the tally
+    ids_path = _root() / "experiments" / "study-set.txt"
+    study_ids = set(ids_path.read_text(encoding="utf-8").split()) if ids_path.exists() else None
     records = []
     for p in sorted(runs_dir.glob("*.json")) if runs_dir.exists() else []:
+        if study_ids is not None and p.stem not in study_ids:
+            continue
         try:
             records.append(json.loads(p.read_text(encoding="utf-8")))
         except json.JSONDecodeError:
@@ -233,9 +214,10 @@ def summary() -> dict:
 
     per: dict[str, dict] = {v: {"variant": v, "label": LABELS[v], "runs": 0, "cost": [], "latency": [],
                                 "errors": 0, "fixes": 0, "gate_rejected": 0, "modules_run": 0, "unchanged": 0, "ai": 0,
-                                "crop": [], "fidelity": [], "keep": 0, "second_look": 0,
-                                "diag": {"tp": 0, "fp": 0, "fn": 0, "n": 0}, "eff_n": 0, "eff_ok": 0,
-                                "realism_n": 0, "altered": 0, "quality": [], "shown": 0, "chosen": 0}
+                                "crop": [], "fidelity": [], "keep": 0, "second_look": 0, "fallback": 0,
+                                "diag": {"tp": 0, "fp": 0, "fn": 0, "n": 0},
+                                "realism_n": 0, "altered": 0, "quality": [], "shown": 0, "chosen": 0,
+                                "altered_by": {}, "quality_by": {}}
                             for v in VARIANTS}
     labels = _labels()
     for rec in records:
@@ -247,6 +229,8 @@ def summary() -> dict:
             s["cost"].append(float(v.get("cost_usd") or 0) + sum(float((st.get("params") or {}).get("cost_usd") or 0) for st in v.get("steps") or []))
             s["latency"].append(float(v.get("latency_ms") or 0))
             s["errors"] += 1 if v.get("status") == "error" else 0
+            # a model family that answered with the rules' plan: the model failed and the product fell back
+            s["fallback"] += 1 if v.get("variant") != "D1" and v.get("source") == "heuristic" else 0
             s["fixes"] += 1 if v.get("plan_fixes") else 0
             steps = v.get("steps") or []
             s["modules_run"] += sum(1 for st in steps if st.get("needed"))
@@ -261,8 +245,6 @@ def summary() -> dict:
                 s["fidelity"].append(float(v["fidelity"]["score"]))
             truth = labels.get(rec.get("image_id"))
             if truth is not None:
-                s["eff_n"] += 1
-                s["eff_ok"] += 1 if _effective(v, truth) else 0
                 if v.get("variant") != "D3":  # the generative family does not diagnose
                     found = {DEFECT_ALIASES.get(d, d) for d in (v.get("defects") or [])} & DIAG_SET
                     t = truth & DIAG_SET
@@ -274,11 +256,16 @@ def summary() -> dict:
     n_best = keep_original = 0
     for j in judgments:
         task = j.get("task")
+        key = (j.get("tester"), j.get("image_id"))
         if task == "realism" and j.get("variant") in per:
-            per[j["variant"]]["realism_n"] += 1
-            per[j["variant"]]["altered"] += 1 if j.get("answer") == "yes" else 0
+            s = per[j["variant"]]
+            s["realism_n"] += 1
+            s["altered"] += 1 if j.get("answer") == "yes" else 0
+            s["altered_by"][key] = j.get("answer") == "yes"
         elif task == "quality" and j.get("variant") in per and (j.get("answer") or "").isdigit():
-            per[j["variant"]]["quality"].append(int(j["answer"]))
+            s = per[j["variant"]]
+            s["quality"].append(int(j["answer"]))
+            s["quality_by"][key] = int(j["answer"])
         elif task == "best":
             n_best += 1
             for v in (j.get("shown") or "").split(";"):
@@ -297,6 +284,10 @@ def summary() -> dict:
         recall = d["tp"] / (d["tp"] + d["fn"]) if d["tp"] + d["fn"] else None
         lo, hi = _wilson(s["chosen"], s["shown"])
         alo, ahi = _wilson(s["altered"], s["realism_n"])
+        # "output efficace" is derived from the same tester's two answers on the same version:
+        # publishable as is = rated good or better and not seen as altered
+        paired = [k for k in s["quality_by"] if k in s["altered_by"]]
+        eff_ok = sum(1 for k in paired if s["quality_by"][k] >= EFFECTIVE_MIN_QUALITY and not s["altered_by"][k])
         rows.append({
             "variant": v, "label": s["label"], "runs": s["runs"],
             # the four measures of phase 1
@@ -306,12 +297,13 @@ def summary() -> dict:
             "mos_sd": round(statistics.pstdev(s["quality"]), 2) if len(s["quality"]) > 1 else None,
             "shown": s["shown"], "chosen": s["chosen"],
             "choice_share": round(s["chosen"] / s["shown"], 3) if s["shown"] else None, "choice_ci": [lo, hi],
-            "effective_n": s["eff_n"], "effective_rate": round(s["eff_ok"] / s["eff_n"], 3) if s["eff_n"] else None,
+            "effective_n": len(paired), "effective_rate": round(eff_ok / len(paired), 3) if paired else None,
             # cost, time, reliability, risk
             "cost_mean_usd": round(statistics.mean(s["cost"]), 5) if s["cost"] else 0.0,
             "latency_p50_ms": int(_pct(s["latency"], 0.5)), "latency_p95_ms": int(_pct(s["latency"], 0.95)),
             "error_rate": round(s["errors"] / s["runs"], 3) if s["runs"] else 0.0,
             "fixes_rate": round(s["fixes"] / s["runs"], 3) if s["runs"] else 0.0,
+            "fallback_rate": round(s["fallback"] / s["runs"], 3) if s["runs"] else 0.0,
             "gate_rejected_rate": round(s["gate_rejected"] / s["modules_run"], 3) if s["modules_run"] else 0.0,
             "unchanged_rate": round(s["unchanged"] / s["runs"], 3) if s["runs"] else 0.0,
             "keep_original_rate": round(s["keep"] / s["runs"], 3) if s["runs"] else 0.0,
@@ -356,12 +348,12 @@ def summary() -> dict:
             verdict["reason"] = (f"{top['label']} è la foto migliore nel {round(100 * top['choice_share'])}% dei giudizi in cui compare, "
                                  f"e il vantaggio è statisticamente significativo (intervalli di confidenza al 95% non sovrapposti).")
         else:
-            cheapest = min(tied, key=lambda r: (r["cost_mean_usd"], r["latency_p50_ms"]))
+            cheapest = min(tied, key=lambda r: r["cost_mean_usd"])
             verdict["winner"] = cheapest["variant"]
             verdict["tie"] = [r["variant"] for r in tied]
             verdict["reason"] = (f"Tra {' e '.join(r['label'] for r in tied)} la differenza di preferenza non è statisticamente "
                                  f"significativa (intervalli di confidenza al 95% sovrapposti). A parità di qualità percepita "
-                                 f"la scelta va al metodo più economico e più rapido: {cheapest['label']}.")
+                                 f"la scelta va al metodo più economico: {cheapest['label']}.")
     testers = {j["tester"] for j in judgments if j.get("tester")}
     return {
         "generated_at": int(time.time()), "runs": len(records), "judgments": len(judgments), "testers": len(testers),
@@ -372,6 +364,6 @@ def summary() -> dict:
             f"Requisito di ammissione: tasso di errore e quota di correzioni bocciate dal controllo di fedeltà sotto il {round(MAX_GATE_REJECTED * 100)}%, "
             f"e meno del {round(MAX_ALTERATION * 100)}% di risposte «alterata» nella domanda sul realismo. Un metodo che altera l'immobile non entra in gara, qualunque sia la sua qualità.",
             f"Tra i metodi ammessi vince la foto migliore secondo i valutatori. Sotto {MIN_BEST} giudizi il campione non basta e non si decide; il voto di qualità (1-5) e l'output efficace descrivono il risultato ma non decidono.",
-            "Se gli intervalli di confidenza al 95% si sovrappongono, la differenza non è significativa: a parità di qualità percepita si sceglie il metodo con costo per foto più basso, poi quello più rapido.",
+            "Se gli intervalli di confidenza al 95% si sovrappongono, la differenza non è significativa: a parità di qualità percepita si sceglie il metodo con costo per foto più basso. Il tempo di elaborazione non entra nella decisione: la correzione gira in background, una volta per annuncio.",
         ],
     }

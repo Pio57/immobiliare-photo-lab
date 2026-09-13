@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { Bar, Button, Card, SectionTitle, Stat, pct, secs, usd } from '../components/ui'
+import { Bar, Button, Card, SectionTitle, Stat, pct } from '../components/ui'
 import { fetchSummary, isSnapshotMode } from '../lib/api'
 import { VARIANT_LABEL, VARIANT_SUBTITLE, type Summary, type SummaryRow, type VariantId } from '../types'
 
@@ -66,10 +66,10 @@ export function EsperimentoView() {
             <Stat label="Giudizi «foto migliore»" value={`${d.choices} / ${v.min_choices}`} sub="raccolti / minimo richiesto per decidere" />
             <Stat label="Terrebbero l’originale" value={share(d.keep_original_share)} sub="quota di giudizi in cui nessuna versione convince" />
             <Stat label="Metodo consigliato" value={winner ? winner.variant : '·'} sub={winner ? VARIANT_SUBTITLE[winner.variant] : 'in attesa dei giudizi'} />
-            <Stat label="Costo del consigliato" value={winner ? usd(winner.cost_mean_usd) : '·'} sub={winner ? `per foto · ${secs(winner.latency_p50_ms)} mediano` : ''} />
+            <Stat label="Valutatori" value={d.testers} sub={`${d.judgments} risposte in tutto`} />
           </div>
           <p className="mt-5 border-t border-neutral-100 pt-4 text-sm leading-relaxed">{v.reason}</p>
-          {v.excluded.length > 0 && (
+          {d.choices > 0 && v.excluded.length > 0 && (
             <p className="mt-2 text-sm text-amber-800">
               Non ammessi alla decisione: {v.excluded.map((e) => `${name(e.variant)} (${e.why})`).join('; ')}.
             </p>
@@ -87,7 +87,7 @@ export function EsperimentoView() {
         <SectionTitle
           eyebrow="Elementi qualitativi"
           title="Le quattro misure del test cieco"
-          hint="Ogni valutatore, nella vista Studio, risponde senza sapere quale metodo ha prodotto cosa. Realismo: originale accanto a una versione, «vedi elementi finti o diversi?». Qualità: la sola versione, voto da 1 a 5. Foto migliore: originale in alto e le versioni affiancate, «quale useresti?». Output efficace: calcolato dalle etichette manuali dei difetti, senza valutatori."
+          hint="Ogni valutatore, nella vista Studio, risponde senza sapere quale metodo ha prodotto cosa. Realismo: originale accanto a una versione, «vedi elementi finti o diversi?». Qualità: la sola versione, voto da 1 a 5. Foto migliore: originale in alto e le versioni affiancate, «quale useresti?». Output efficace: la versione è pubblicabile così com’è, cioè voto almeno 4 e nessuna alterazione vista dallo stesso valutatore."
         />
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -126,7 +126,7 @@ export function EsperimentoView() {
                   <td className={td}>
                     {share(r.effective_rate)}
                     <Bar value={r.effective_rate ?? 0} tone="ok" />
-                    <div className="mt-1 text-xs text-muted">{r.effective_n ? `su ${r.effective_n} foto etichettate` : 'nessuna etichetta'}</div>
+                    <div className="mt-1 text-xs text-muted">{r.effective_n ? `su ${r.effective_n} valutazioni` : 'nessuna valutazione'}</div>
                   </td>
                 </tr>
               ))}
@@ -135,82 +135,6 @@ export function EsperimentoView() {
         </Card>
       </section>
 
-      <section>
-        <SectionTitle
-          eyebrow="Costo, tempo, affidabilità, rischio"
-          title="Gli altri parametri di confronto"
-          hint="Misurati su tutte le foto elaborate, non solo su quelle giudicate. Il controllo di fedeltà è un requisito, non un punteggio: un metodo che lo supera di rado non entra nella decisione."
-        />
-        <Card className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-line text-left text-xs text-muted">
-              <tr>
-                <th className={th}>Metodo</th>
-                <th className={th}>Foto</th>
-                <th className={th}>Costo per foto</th>
-                <th className={th}>Tempo mediano / 95°</th>
-                <th className={th}>Errori</th>
-                <th className={th}>Piani corretti dal sistema</th>
-                <th className={th}>Fermati dal controllo di fedeltà</th>
-                <th className={th}>Fedeltà minima</th>
-                <th className={th}>Lascia l’originale</th>
-                <th className={th}>Diagnosi · precisione / richiamo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.variants.map((r) => (
-                <tr key={r.variant} className="border-b border-neutral-100 last:border-0">
-                  <td className={`${td} font-semibold`}>{VARIANT_LABEL[r.variant]}</td>
-                  <td className={td}>{r.runs}</td>
-                  <td className={td}>{usd(r.cost_mean_usd)}</td>
-                  <td className={td}>
-                    {secs(r.latency_p50_ms)} / {secs(r.latency_p95_ms)}
-                  </td>
-                  <td className={td}>{pct(r.error_rate)}</td>
-                  <td className={td}>{pct(r.fixes_rate)}</td>
-                  <td className={td}>
-                    {pct(r.gate_rejected_rate)}
-                    <Bar value={r.gate_rejected_rate} tone="warn" />
-                  </td>
-                  <td className={td}>{n(r.fidelity_min, 3)}</td>
-                  <td className={td}>{pct(r.keep_original_rate + r.unchanged_rate)}</td>
-                  <td className={`${td} text-xs`}>
-                    {r.diagnosis.n_labelled && r.diagnosis.precision !== null
-                      ? `${pct(r.diagnosis.precision)} / ${pct(r.diagnosis.recall ?? 0)} (n=${r.diagnosis.n_labelled})`
-                      : 'non diagnostica'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-        <dl className="mt-3 grid gap-x-8 gap-y-1.5 text-xs leading-relaxed text-muted sm:grid-cols-2">
-          <div>
-            <dt className="inline font-medium text-neutral-700">Costo per foto: </dt>
-            <dd className="inline">token dei modelli a prezzo di listino più il tempo di GPU su Replicate; le regole non chiamano modelli.</dd>
-          </div>
-          <div>
-            <dt className="inline font-medium text-neutral-700">Errori: </dt>
-            <dd className="inline">risposte del modello non leggibili o servizio non raggiunto; in quei casi il prodotto ricade sulle regole.</dd>
-          </div>
-          <div>
-            <dt className="inline font-medium text-neutral-700">Piani corretti dal sistema: </dt>
-            <dd className="inline">quante volte una guardia deterministica ha modificato il piano del modello (rotazione misurata usata al posto della sua, verso dell’esposizione invertito, contrasto locale spento su foto compresse).</dd>
-          </div>
-          <div>
-            <dt className="inline font-medium text-neutral-700">Fermati dal controllo di fedeltà: </dt>
-            <dd className="inline">quota di correzioni bloccate perché l’immagine si allontanava troppo dall’originale, anche dopo un secondo tentativo più prudente.</dd>
-          </div>
-          <div>
-            <dt className="inline font-medium text-neutral-700">Diagnosi: </dt>
-            <dd className="inline">difetti individuati confrontati con l’etichettatura manuale (precisione = quanti dei difetti segnalati sono veri; richiamo = quanti dei difetti veri sono stati trovati).</dd>
-          </div>
-          <div>
-            <dt className="inline font-medium text-neutral-700">Output efficace: </dt>
-            <dd className="inline">foto in cui ogni difetto etichettato a mano è stato trattato dal modulo competente, nessuna correzione è stata fermata e il metodo non ha fallito: pubblicabile senza altro ritocco. La compressione è una condizione dell’input (il piano diventa più prudente), non un difetto da risolvere.</dd>
-          </div>
-        </dl>
-      </section>
     </div>
   )
 }
