@@ -32,47 +32,78 @@ docs/         contratto dati, calibrazione del controllo di fedeltà, sorgente d
 
 ## Tecnologie
 
-- **n8n Cloud** per l'orchestrazione: quattro workflow generati da codice
+- **n8n** (self-hosted in Docker) per l'orchestrazione: quattro workflow generati da codice
   (`n8n/build_workflows.py`), con i prompt letti da `prompts/` e gli indirizzi da `.env`.
 - **Python 3.12, FastAPI, OpenCV** per il servizio `cv-service`, che esegue tutto ciò che è
-  deterministico ed è raggiunto da n8n Cloud attraverso un tunnel ngrok. Trentacinque test con
-  `pytest`.
+  deterministico e gira come container accanto a n8n. Trentacinque test con `pytest`.
+- **Docker** sul server (Hostinger VPS), **Vercel** per il sito.
 - **React 19, Vite, TypeScript, Tailwind 4** per il sito, che parla soltanto con i webhook n8n.
 - **Claude Haiku 4.5** (diagnosi e verifica), **Claude Sonnet 5** (giudice automatico del batch),
   **SDXL + ControlNet** e **Real-ESRGAN** su Replicate (parte generativa).
 - Sviluppo con **Claude Code**.
 
-## Di cosa c'è bisogno
+## Dove gira
 
-- Python 3.12, Node 20 o superiore, ngrok.
-- Un account n8n Cloud (in alternativa n8n in locale con il `docker-compose.yml` incluso).
+Il prototipo è pubblicato e funziona senza nulla di acceso sul computer di chi lo ha costruito:
+
+- il sito è su Vercel: https://immobiliare-photo-lab.vercel.app;
+- n8n è self-hosted su un VPS Hostinger (Docker), raggiungibile in https;
+- cv-service gira sullo stesso VPS come container Docker, sulla rete interna di n8n
+  (`deploy/docker-compose.yml`), con `dataset/` ed `experiments/` montati dal repository clonato
+  sul server.
+
+Ogni push su `main` ricostruisce il sito da solo. Per aggiornare cv-service sul server basta
+`bash /opt/photo-lab/deploy/update.sh` (pull, rebuild, riavvio, controllo di salute). I workflow
+n8n si aggiornano rigenerando i JSON e reimportandoli.
+
+## Di cosa c'è bisogno per farlo girare da zero
+
+- Python 3.12, Node 20 o superiore.
+- Un'istanza n8n (self-hosted con Docker, come sul VPS, oppure n8n Cloud) e, se cv-service gira in
+  locale, ngrok per esporlo.
 - Una chiave API Anthropic e un token Replicate. Le chiavi vanno in `.env`, che è ignorato da
   git; `.env.example` elenca i nomi delle variabili e a cosa servono.
 
 ## Come si avvia
 
-1. Copiare `.env.example` in `.env` e inserire `ANTHROPIC_API_KEY` e `REPLICATE_API_TOKEN`.
+### Sul server (come è pubblicato)
+
+Sul VPS con il template n8n di Hostinger, da root:
+
+```bash
+git clone https://github.com/Pio57/immobiliare-photo-lab.git /opt/photo-lab
+cd /opt/photo-lab
+docker compose -f deploy/docker-compose.yml up -d --build
+docker exec <container n8n> wget -qO- http://cv-service:8000/health   # {"status":"ok"}
+```
+
+In `.env` locale si mette `CV_SERVICE_PUBLIC_URL=http://cv-service:8000`, si rigenerano i workflow
+e si importano nel n8n del server seguendo `n8n/README.md` (Correggi per primo, il suo
+identificativo in `.env` come `N8N_CORRECT_WORKFLOW_ID`, poi prodotto e scelte, credenziali sui
+nodi, Publish). Su Vercel si imposta `VITE_N8N_WEBHOOK_URL` con l'URL del webhook del prodotto.
+
+### In locale (sviluppo)
+
+1. Copiare `.env.example` in `.env` e inserire le chiavi.
 2. Avviare il servizio:
    ```powershell
    cd cv-service
    py -3.12 -m venv .venv
-   .venv\Scripts\activate
+   .venv\Scriptsctivate
    pip install -r requirements.txt
    pytest
    uvicorn app.main:app --port 8000
    ```
-3. In un'altra finestra aprire il tunnel con `ngrok http 8000` e copiare l'indirizzo pubblico in
-   `.env` come `CV_SERVICE_PUBLIC_URL`.
-4. Generare i workflow con `cv-service\.venv\Scripts\python.exe n8n\build_workflows.py` e
-   importarli in n8n seguendo `n8n/README.md`: prima Correggi (il cui identificativo va in `.env`
-   come `N8N_CORRECT_WORKFLOW_ID`, poi si rigenera), quindi prodotto, scelte e batch. Assegnare
-   le credenziali Anthropic e Replicate ai nodi indicati e pubblicare.
+3. Esporlo con `ngrok http 8000` e copiare l'indirizzo pubblico in `.env` come
+   `CV_SERVICE_PUBLIC_URL`.
+4. Generare i workflow con `cv-service\.venv\Scripts\python.exe n8nuild_workflows.py` e
+   importarli in n8n come sopra.
 5. Copiare l'indirizzo del webhook del prodotto in `.env` come `VITE_N8N_WEBHOOK_URL`.
-6. Avviare il sito: `cd frontend`, `npm install`, `npm run dev`, e aprire
-   `http://localhost:5173`.
+6. Avviare il sito: `cd frontend`, `npm install`, `npm run dev`, e aprire `http://localhost:5173`.
 
-A ogni riavvio di ngrok l'indirizzo pubblico cambia: aggiornare `.env`, rigenerare i workflow e
-reimportarli.
+A ogni riavvio di ngrok l'indirizzo cambia: aggiornare `.env`, rigenerare i workflow e
+reimportarli. Il sito, anche senza backend, mostra Studio ed Esperimento dalla copia statica in
+`frontend/public/snapshot/` (rigenerabile con `experiments/scripts/export_snapshot.py`).
 
 ## Come si usa
 
