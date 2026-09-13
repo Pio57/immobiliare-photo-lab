@@ -9,7 +9,6 @@ img_009
 img_010
 img_011
 img_012
-img_013
 img_014
 img_015
 img_016
