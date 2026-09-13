@@ -640,8 +640,8 @@ return {{ json: {{ image_id, variants: [...prev, v], judge: [] }} }};
         }, x + 220, y, retryOnFail=True, maxTries=2, waitBetweenTries=5000, onError="continueRegularOutput"),
         if_bool(f"{v}: succeeded?", "$json.status === 'succeeded'", x + 440, y),
         # Cold start: `Prefer: wait=60` comes back with the prediction still 'starting'.
-        # Poll it every 15 s, at most 8 times, before calling it a timeout.
-        if_bool(f"{v}: in corso?", "($json.status === 'starting' || $json.status === 'processing') && ($json._polls || 0) < 8", x + 440, y + 180),
+        # Poll it every 15 s, at most 12 times (3 min), before calling it a timeout.
+        if_bool(f"{v}: in corso?", "($json.status === 'starting' || $json.status === 'processing') && ($json._polls || 0) < 12", x + 440, y + 180),
         node(f"{v}: attendi", "n8n-nodes-base.wait", 1.1, {"amount": 15, "unit": "seconds"}, x + 220, y + 180),
         node(f"{v}: stato", "n8n-nodes-base.httpRequest", 4.2, {
             "method": "GET", "url": "={{ $json.urls.get }}",

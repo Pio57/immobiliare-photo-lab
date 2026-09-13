@@ -603,7 +603,7 @@
           "conditions": [
             {
               "id": "c",
-              "leftValue": "={{ ($json.status === 'starting' || $json.status === 'processing') && ($json._polls || 0) < 8 }}",
+              "leftValue": "={{ ($json.status === 'starting' || $json.status === 'processing') && ($json._polls || 0) < 12 }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
