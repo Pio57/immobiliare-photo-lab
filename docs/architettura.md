@@ -205,10 +205,10 @@ con CORS aperto:
 
 | webhook | metodo | cv-service | serve a |
 |---|---|---|---|
-| `photo-lab-choice` | POST | `POST /choices` | una risposta dello Studio (`task` realism, quality o best) |
+| `photo-lab-choice` | POST | `POST /choices` | una risposta dello Studio |
 | `photo-lab-summary` | GET | `GET /summary` | il tabellone della vista Esperimento |
 | `photo-lab-result` | GET | `GET /runs/{image_id}/cards` | le tre versioni di un'esecuzione, per la Prova (polling) e per lo Studio |
-| `photo-lab-study` | GET | `GET /study` | gli id dello studio, quali sono pronti, i valutatori finora |
+| `photo-lab-study` | GET | `GET /study` | le foto dello studio |
 
 ### 3.4 Batch (`workflow-batch.json`, 45 nodi, avvio manuale)
 
@@ -249,9 +249,9 @@ FastAPI, Python 3.12, OpenCV. Trentacinque test (`pytest`). Configurazione in `a
 | `POST /runs/{id}` | Prodotto, Batch | salva il record; i pixel eventualmente inline vengono scritti in `dataset/processed/` e tolti dal JSON |
 | `GET /runs/{id}/cards` | Scelte | le schede di un'esecuzione nell'ordine cieco del record, con le immagini in base64; se `dataset/processed/` manca (server appena clonato) le immagini vengono dalla copia statica del sito |
 | `GET /dataset`, `/dataset/{id}`, `/dataset/{id}/file`, `/processed/{name}` | Batch, modelli | il dataset e le immagini prodotte |
-| `POST /choices` | Scelte | accoda una riga a `experiments/judgments.csv`; valida `task` e `answer` |
-| `GET /study` | Scelte | id di `experiments/study-set.txt`, quali hanno un record, risposte per valutatore |
-| `GET /summary` | Scelte | il tabellone (sotto) |
+| `POST /choices` | Scelte | accoda una risposta dello Studio a `experiments/judgments.csv` |
+| `GET /study` | Scelte | le foto dello studio e quali hanno già le tre versioni |
+| `GET /summary` | Scelte | le misure aggregate per la vista Esperimento |
 
 ### 4.2 La pipeline (`app/core/pipeline.py`)
 
@@ -284,18 +284,6 @@ diretto. Sul banco di calibrazione le 50 correzioni lecite passano tutte, e dell
 sottili. Per questo la super-risoluzione, che inventa texture sotto la scala del gate, è ammessa
 solo sotto i 1000 px e sempre etichettata `ai_reconstructed`.
 
-### 4.4 Il tabellone (`app/api/experiment.py`)
-
-`GET /summary` rilegge a ogni chiamata i record delle foto dello studio e `judgments.csv` e calcola,
-per flusso: tasso di alterazione (risposte «sì» al realismo, con intervallo di Wilson al 95%);
-voto medio di qualità e deviazione; quota di vittorie in «foto migliore» (vittorie / apparizioni,
-con intervallo di Wilson); tasso di pubblicabilità (per ogni coppia valutatore-versione, voto ≥ 4 e
-nessuna alterazione); e i parametri di supporto (costo medio per foto dai token e dal tempo GPU,
-tasso di errore, ricadute sulle regole, piani corretti dalle guardie, correzioni fermate dal gate).
-Poi applica la regola di decisione: esclusi i flussi con errori, correzioni fermate o alterazioni
-oltre il 10%; con almeno 30 giudizi «foto migliore» vince la quota più alta; se gli intervalli si
-sovrappongono decide il costo per foto. La vista Esperimento mostra le quattro misure e la regola.
-
 ## 5. Il sito (`frontend/`)
 
 ![La vista Prova: tre metodi affiancati con la scheda](report/figures/site-prova.png)
@@ -314,12 +302,10 @@ da `experiments/scripts/export_snapshot.py`.
   ogni 5 s finché `ready`; l'upload in corso sopravvive a un ricaricamento della pagina
   (`sessionStorage`). Tre colonne con `CompareSlider` (prima/dopo sulla forma dell'originale) e
   la scheda del metodo. `?result=<image_id>` apre un'esecuzione salvata.
-- **Studio** (`StudioView`): `fetchStudy`, poi per ogni foto `fetchResult`; le versioni con
-  output vengono mescolate; per ciascuna realismo (tasti S/N) e qualità (1–5), poi foto migliore
-  (1/2/3, 0 = originale). Ogni risposta è una `POST` a `photo-lab-choice`. L'avanzamento per
-  valutatore è in `localStorage`, così si riprende dalla foto giusta. Il verdetto del gate non è
-  mai mostrato.
-- **Esperimento** (`EsperimentoView`): `fetchSummary` e le quattro misure.
+- **Studio** (`StudioView`): legge la lista dello studio e, foto per foto, le versioni salvate;
+  le mostra senza nomi e registra ogni risposta con una `POST` a `photo-lab-choice`.
+- **Esperimento** (`EsperimentoView`): legge `photo-lab-summary` e mostra le misure e la regola
+  di decisione descritte nella nota.
 
 ## 6. Dati e file
 
