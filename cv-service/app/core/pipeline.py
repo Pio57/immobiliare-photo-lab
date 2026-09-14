@@ -222,8 +222,15 @@ def estimate_strong_roll(img: np.ndarray) -> float | None:
     detected = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD).detect(gray)[0]
     if detected is None:
         return None
+    h, w = gray.shape
+    margin = 0.015 * max(h, w)
     devs = []
     for x1, y1, x2, y2 in detected[:, 0]:
+        # A screenshot or a framed photo carries its own edges: perfectly axis-aligned
+        # segments hugging the border are the frame, not the room.
+        on_border = min(x1, x2) < margin or max(x1, x2) > w - margin or min(y1, y2) < margin or max(y1, y2) > h - margin
+        if on_border and abs(x2 - x1) < 2 or on_border and abs(y2 - y1) < 2:
+            continue
         angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
         if angle < 0:
             angle += 180
