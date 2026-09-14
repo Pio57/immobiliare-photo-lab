@@ -80,8 +80,11 @@ export function VersionGrid({ cards, original, onZoom }: { cards: VersionCard[];
               {card.output && card.changed ? (
                 <CompareSlider before={original} after={card.output} afterLabel={`V${i + 1}`} />
               ) : (
-                <div className="flex aspect-[4/3] items-center justify-center bg-neutral-50 text-sm text-muted">
-                  {card.error ? 'errore del modello' : 'lasciata com’è'}
+                <div className="relative">
+                  <img src={original} alt="Originale" className="w-full object-contain" style={{ maxHeight: '72vh' }} draggable={false} />
+                  <div className="absolute right-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    {card.error ? 'errore del modello: originale' : 'lasciata com’è'}
+                  </div>
                 </div>
               )}
             </Card>

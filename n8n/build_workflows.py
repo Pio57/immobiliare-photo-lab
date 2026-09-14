@@ -302,6 +302,9 @@ if (Math.abs(measured) > 15) {{
   plan.rotate_deg = 0;
   if (!defects.includes('tilt')) defects.push('tilt');
   if (!advice.includes('reshoot')) advice.push('reshoot');
+  // The reshoot advice is about the tilt only: the other corrections still go through
+  // (a model that gives up on the whole photo because of the angle is overruled here).
+  if (d.recommendation === 'keep_original') {{ d.recommendation = 'apply'; fixes.push('keep_original -> apply: reshoot is about the tilt, the rest is corrected'); }}
 }} else if (measured !== 0 && plan.rotate_deg !== measured) {{ plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }}
 // A plan that darkens a dark photo (or brightens a bright one) is a sign error, not
 // a judgement: flip it and say so in the record, so the batch can count how often.
