@@ -77,15 +77,19 @@ Re-import: aprire il workflow, Ctrl+A, Canc, Import from file, ricollegare le cr
 - Python 3.12 (`py -3.12`); il `python` di default è 3.8 e non va usato.
 - Commit solo su richiesta esplicita dell'utente.
 
-## Stato attuale (aggiornare ogni sera)
-- 2026-09-14: consegna pronta. Online su Vercel + VPS Hostinger (n8n self-hosted, cv-service Docker,
-  repo in /opt/photo-lab, `bash deploy/update.sh`; judgments.csv vive sul server, ignorato da git).
-  Nota PDF 2 pagine, docs/architettura.md + PDF 14 pagine, README con canvas e screenshot, video
-  demo (allegato all'email, non nel repo). Studio = fase 1 (realismo, qualità, foto migliore),
-  output efficace = tasso di pubblicabilità dal pool; sperimentazione non eseguita per scelta.
-  Ultime correzioni dal test sul campo: limite rotazione 15° (oltre 17° tilt + reshoot), seconda
-  opinione LSD sull'inclinazione, orientamento 90/180/270 via domanda a quattro vie (D2), retry
-  NSFW/429 su Replicate, giudice AI rimosso dal Batch, img_013 fuori dallo studio.
-  Regola: ogni modifica a build_workflows.py che tocca MODULES o Correggi richiede il re-import
-  di Correggi (stesso id) oltre a Prodotto e Batch; docs e PDF vanno rigenerati con
-  `build.py docs/architettura.md docs/immobiliare-photo-lab-architettura.pdf --wide`.
+## Stato del progetto
+- Online: sito su Vercel, n8n self-hosted e cv-service in Docker su un VPS Hostinger (repo clonato in
+  /opt/photo-lab, aggiornamento con `bash deploy/update.sh`; `judgments.csv` vive sul server, fuori
+  da git).
+- Documenti: `docs/report/nota.md` (nota di accompagnamento, 2 pagine, sorgente del PDF),
+  `docs/architettura.md` (architettura e workflow nodo per nodo, PDF con `--wide`), README.
+- Studio = fase 1 della nota (realismo, qualità, foto migliore; output efficace = tasso di
+  pubblicabilità dal pool). La sperimentazione con i valutatori non è stata eseguita: il prototipo
+  la rende possibile, la nota descrive cosa misura e come decide.
+- Comportamenti calibrati sul campo: rotazione fino a 15° (oltre 17° `tilt` + `reshoot`, senza
+  rotazione), seconda opinione LSD sull'inclinazione (bordi di screenshot ignorati), orientamento
+  90/180/270 deciso da una domanda a quattro vie in D2, scurimento sulla luminanza con gamma ≤ 1,5,
+  retry su Replicate per NSFW/429, polling del cold start fino a 3 minuti.
+- Regola di manutenzione: una modifica a `build_workflows.py` che tocca MODULES o Correggi richiede
+  il re-import di Correggi (stesso id) oltre a Prodotto e Batch; una modifica al solo cv-service
+  richiede solo `update.sh`.
