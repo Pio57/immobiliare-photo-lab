@@ -88,7 +88,20 @@ def apply_gamma(img: np.ndarray, gamma: float) -> np.ndarray:
     if abs(gamma - 1.0) < 1e-3:
         return img
     lut = np.array([((i / 255.0) ** gamma) * 255 for i in range(256)], dtype=np.uint8)
-    return cv2.LUT(apply_levels(img), lut)
+    levelled = apply_levels(img)
+    if gamma > 1.0:
+        # Darkening an overexposed photo per channel pulls the pale tones towards their
+        # hue (a cream wall turns orange): the curve goes on the luminance only.
+        lab = cv2.cvtColor(levelled, cv2.COLOR_BGR2LAB).astype(np.float32)
+        L_old = np.maximum(lab[..., 0], 1.0)
+        L_new = cv2.LUT(lab[..., 0].astype(np.uint8), lut).astype(np.float32)
+        # chroma follows the luminance halfway: a darker wall does not become a more
+        # saturated one (LAB keeps a, b fixed, which reads as a colour boost)
+        k = np.sqrt(L_new / L_old)[..., None]
+        lab[..., 1:] = 128.0 + (lab[..., 1:] - 128.0) * k
+        lab[..., 0] = L_new
+        return cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
+    return cv2.LUT(levelled, lut)
 
 
 def apply_sharpen(img: np.ndarray, amount: float, sigma: float = 1.2) -> np.ndarray:
@@ -365,6 +378,10 @@ def gamma_for_target(mean_luminance: float, target: float = 125.0, max_gain: flo
     g = math.log(target / 255.0) / math.log(m)
     lo, hi = EnhanceParams.BOUNDS["gamma"]
     g = min(max(g, lo), hi)
+    # Darkening has a ceiling of its own: what is clipped stays white whatever the
+    # curve, so past 1.5 the photo only gains contrast (measured on a flash-lit kitchen).
+    if g > 1.0:
+        g = min(g, 1.5)
     # cap the gain at the mean: slope of x^g at m is g * m^(g-1)
     while g < 1.0 and g * m ** (g - 1) > max_gain:
         g += 0.02
