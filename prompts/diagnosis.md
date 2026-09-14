@@ -54,7 +54,9 @@ Modules and their parameters (values outside the range are clamped):
   whose RIGHT end is LOWER than its left end needs a POSITIVE value
   (counter-clockwise); right end higher, negative. Typical hand-held tilt is 2–6
   degrees. Above 15 degrees no rotation can fix it without cutting away too much:
-  keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice.
+  keep `rotate_deg` 0, still list `tilt`, and add `reshoot` to the advice. That is
+  advice about the angle only: still plan every other correction the photo needs
+  (colour, light, cleaning); a hopeless tilt is never a reason for `keep_original`.
 
 You may only correct exposure, local contrast, white balance, sensor noise and
 camera tilt. Never describe or request a change to the content of the photo

@@ -291,7 +291,8 @@ if (source === 'model' && !plan.orientation && first_turn) plan.orientation = fi
 // the angle less so; and the gate cannot catch a wrong sign (it aligns the original).
 const measured = Number(prep.stats.tilt_deg || 0);
 const fixes = [];
-const defects = [...(d.defects || [])], advice = [...(d.advice || [])];
+const ADVICE = ['blur', 'perspective', 'clutter', 'reshoot'];
+const defects = (d.defects || []).filter(x => !ADVICE.includes(x)), advice = [...(d.advice || []), ...(d.defects || []).filter(x => ADVICE.includes(x))].filter((x, i, a) => a.indexOf(x) === i);
 // The quarter turn is the model's pick among the four thumbnails (see /prepare `turns`);
 // a turned photo is `rotated` whatever the model wrote in the list.
 if (plan.orientation && !defects.includes('rotated')) defects.push('rotated');
@@ -305,6 +306,14 @@ if (Math.abs(measured) > 15) {{
   // The reshoot advice is about the tilt only: the other corrections still go through
   // (a model that gives up on the whole photo because of the angle is overruled here).
   if (d.recommendation === 'keep_original') {{ d.recommendation = 'apply'; fixes.push('keep_original -> apply: reshoot is about the tilt, the rest is corrected'); }}
+  // A model that gave up on the photo leaves an empty plan: the rules fill in the
+  // non-geometric part (colour, light, cleaning), so the photo is at least cleaned.
+  const empty = plan.white_balance === 0 && plan.gamma === 1 && plan.clahe_clip === 0 && plan.denoise === 0 && plan.sharpen === 0;
+  if (source === 'model' && empty) {{
+    const h = prep.heuristic_params;
+    Object.assign(plan, {{ white_balance: h.white_balance, gamma: h.gamma, clahe_clip: h.clahe_clip, denoise: h.denoise, sharpen: h.sharpen }});
+    fixes.push('empty plan on a reshoot: colour, light and cleaning taken from the rules');
+  }}
 }} else if (measured !== 0 && plan.rotate_deg !== measured) {{ plan.rotate_deg = measured; fixes.push('rotate_deg: measured value used'); }}
 // A plan that darkens a dark photo (or brightens a bright one) is a sign error, not
 // a judgement: flip it and say so in the record, so the batch can count how often.
